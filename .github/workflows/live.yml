@@ -14,8 +14,8 @@ jobs:
   streaming:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Checkout
-        uses: actions/checkout@v4
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4 # PENTING: Agar file logo_video.mp4 di repo bisa terbaca
 
       - name: 2. Install Node.js
         uses: actions/setup-node@v4
@@ -36,9 +36,12 @@ jobs:
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          echo "Mengunduh logo..."
-          LINK_LOGO="https://youtube.com/shorts/JrYgIbsaSd8"
-          yt-dlp --cookies cookies.txt -f "best" --merge-output-format mp4 "$LINK_LOGO" -o logo_video.mp4
+          # Cek apakah file logo benar-benar ada di folder repo
+          if [ ! -f "logo_video.mp4" ]; then
+            echo "FATAL ERROR: File logo_video.mp4 tidak ditemukan di repository!"
+            ls -R # List file untuk debugging
+            exit 1
+          fi
 
           while true; do
             echo "--- [$(date)] Mencari Direct Link ---"
@@ -57,13 +60,13 @@ jobs:
 
             if [ -z "$VIDEO_URL" ]; then
               echo "Gagal ambil URL. Cek Cookies!"
-              sleep 1
+              sleep 5
               continue
             fi
 
             echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # Filter: Crop 1:1, Chroma Key #009400, Scale 85, Posisi Atas Kanan (25px)
+            # Menggunakan file logo_video.mp4 yang sudah diupload ke repo
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i logo_video.mp4 \
               -filter_complex "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=85:-1[logo]; [0:v][logo]overlay=W-w-25:25:shortest=1" \
@@ -72,7 +75,7 @@ jobs:
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus. Mengulang..."
-            sleep 1
+            echo "Stream terputus. Mengulang dalam 5 detik..."
+            sleep 5
           done
           
