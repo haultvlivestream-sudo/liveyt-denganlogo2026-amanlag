@@ -40,14 +40,13 @@ jobs:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
           
           # === INPUT DARI USER (MANUAL) ===
-          # Kita simpan dulu ke variabel ENV agar aman saat Cron Job jalan
           MANUAL_LINK: ${{ github.event.inputs.link_youtube }}
           MANUAL_KEY: ${{ github.event.inputs.kunci_rtmp }}
 
-          # === HARDCODED DEFAULT (UNTUK JAM 4 PAGI) ===
+          # === HARDCODED DEFAULT (DIPERBARUI) ===
           # Link dan Key ini otomatis dipakai jika Input Manual kosong
-          DEFAULT_LINK: 'https://www.youtube.com/live/EynUk_-8P6E?si=OAodbPD4I4UsW8vF'
-          DEFAULT_KEY: '593u-72yx-5upk-93dt-c7db'
+          DEFAULT_LINK: 'https://www.youtube.com/live/u8_UXybkueU?si=Z0MBT0Ye4triY0dL'
+          DEFAULT_KEY: '6wge-uwsf-d5da-0fqb-fmdw'
           
         run: |
           set +e
@@ -55,14 +54,10 @@ jobs:
           
           # Cek file logo
           if [ ! -f "logo_video.mp4" ]; then
-            echo "FATAL ERROR: File logo_video.mp4 tidak ditemukan di repository!"
-            ls -R
-            exit 1
+            echo "PERINGATAN: File logo_video.mp4 tidak ditemukan. Menjalankan tanpa logo."
           fi
 
-          # LOGIKA PEMILIHAN VARIABEL (LEBIH AMAN)
-          # Jika MANUAL_LINK tidak kosong, pakai itu. Jika kosong, pakai DEFAULT_LINK.
-          
+          # LOGIKA PEMILIHAN VARIABEL
           if [ -n "$MANUAL_LINK" ]; then
             LINK_SUMBER="$MANUAL_LINK"
             echo "Mode: MANUAL INPUT (Link dari Form)"
@@ -87,7 +82,7 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Direct Link ---"
             
-            # Coba ambil link dengan berbagai opsi agar tembus
+            # Ambil URL stream langsung
             VIDEO_URL=$(yt-dlp --cookies cookies.txt \
                                --js-runtime node \
                                --force-ipv4 \
@@ -96,28 +91,37 @@ jobs:
                                -f "best[height<=720][protocol!=m3u8_native][protocol!=m3u8]" \
                                -g "$LINK_SUMBER" 2>/dev/null)
 
-            # Fallback jika cara pertama gagal
             if [ -z "$VIDEO_URL" ]; then
               VIDEO_URL=$(yt-dlp --cookies cookies.txt --js-runtime node -f "best[height<=720]" -g "$LINK_SUMBER" 2>/dev/null)
             fi
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "Gagal ambil URL. Stream sumber mungkin offline atau Cookies invalid."
-              echo "Akan mencoba lagi dalam 10 detik..."
-              sleep 10
+              echo "Gagal ambil URL. Stream mungkin offline. Coba lagi dalam 30 detik..."
+              sleep 30
               continue
             fi
 
             echo "SUMBER DITEMUKAN! Memulai Streaming..."
 
-            ffmpeg -re -i "$VIDEO_URL" \
-              -stream_loop -1 -i logo_video.mp4 \
-              -filter_complex "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=85:-1[logo]; [0:v][logo]overlay=W-w-25:25:shortest=1" \
-              -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
-              -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -ar 44100 -b:a 128k \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
+            # Eksekusi FFmpeg dengan Filter Logo
+            if [ -f "logo_video.mp4" ]; then
+              ffmpeg -re -i "$VIDEO_URL" \
+                -stream_loop -1 -i logo_video.mp4 \
+                -filter_complex "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=85:-1[logo]; [0:v][logo]overlay=W-w-25:25:shortest=1" \
+                -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
+                -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -ar 44100 -b:a 128k \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
+            else
+              # Jika logo tidak ada, jalankan relay biasa tanpa filter_complex
+              ffmpeg -re -i "$VIDEO_URL" \
+                -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
+                -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -ar 44100 -b:a 128k \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
+            fi
 
-            echo "Stream terputus/selesai. Restarting loop..."
-            sleep 5
+            echo "Stream terputus. Restarting dalam 10 detik..."
+            sleep 10
           done
+          
