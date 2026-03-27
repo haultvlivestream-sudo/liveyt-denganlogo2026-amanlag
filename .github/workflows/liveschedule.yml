@@ -1,0 +1,123 @@
+name: YouTube Relay Pro (Auto 04:00 WIB - Hardcoded)
+
+on:
+  # Trigger Manual (Bisa ganti link/key sesuka hati)
+  workflow_dispatch:
+    inputs:
+      link_youtube:
+        description: 'Link Video Sumber (Kosongkan = Pakai Link Default)'
+        required: false
+      kunci_rtmp:
+        description: 'Stream Key (Kosongkan = Pakai Key Default)'
+        required: false
+  
+  # Trigger Otomatis (Jadwal)
+  schedule:
+    # Jam 21:00 UTC = Jam 04:00 WIB (Pagi)
+    - cron: '0 21 * * *'
+
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Install Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
+
+      - name: 4. Jalankan Relay Streaming
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          
+          # === INPUT DARI USER (MANUAL) ===
+          # Kita simpan dulu ke variabel ENV agar aman saat Cron Job jalan
+          MANUAL_LINK: ${{ github.event.inputs.link_youtube }}
+          MANUAL_KEY: ${{ github.event.inputs.kunci_rtmp }}
+
+          # === HARDCODED DEFAULT (UNTUK JAM 4 PAGI) ===
+          # Link dan Key ini otomatis dipakai jika Input Manual kosong
+          DEFAULT_LINK: 'https://www.youtube.com/live/EynUk_-8P6E?si=OAodbPD4I4UsW8vF'
+          DEFAULT_KEY: '593u-72yx-5upk-93dt-c7db'
+          
+        run: |
+          set +e
+          echo "$YT_COOKIES" > cookies.txt
+          
+          # Cek file logo
+          if [ ! -f "logo_video.mp4" ]; then
+            echo "FATAL ERROR: File logo_video.mp4 tidak ditemukan di repository!"
+            ls -R
+            exit 1
+          fi
+
+          # LOGIKA PEMILIHAN VARIABEL (LEBIH AMAN)
+          # Jika MANUAL_LINK tidak kosong, pakai itu. Jika kosong, pakai DEFAULT_LINK.
+          
+          if [ -n "$MANUAL_LINK" ]; then
+            LINK_SUMBER="$MANUAL_LINK"
+            echo "Mode: MANUAL INPUT (Link dari Form)"
+          else
+            LINK_SUMBER="$DEFAULT_LINK"
+            echo "Mode: AUTO SCHEDULE (Link Hardcoded)"
+          fi
+
+          if [ -n "$MANUAL_KEY" ]; then
+            STREAM_KEY="$MANUAL_KEY"
+            echo "Mode: MANUAL INPUT (Key dari Form)"
+          else
+            STREAM_KEY="$DEFAULT_KEY"
+            echo "Mode: AUTO SCHEDULE (Key Hardcoded)"
+          fi
+
+          echo "------------------------------------------------"
+          echo "Target Link : $LINK_SUMBER"
+          echo "Target Key  : ...${STREAM_KEY: -4} (Disensor)"
+          echo "------------------------------------------------"
+
+          while true; do
+            echo "--- [$(date)] Mencari Direct Link ---"
+            
+            # Coba ambil link dengan berbagai opsi agar tembus
+            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
+                               --js-runtime node \
+                               --force-ipv4 \
+                               --no-playlist \
+                               --extractor-args "youtube:player_client=mweb,web" \
+                               -f "best[height<=720][protocol!=m3u8_native][protocol!=m3u8]" \
+                               -g "$LINK_SUMBER" 2>/dev/null)
+
+            # Fallback jika cara pertama gagal
+            if [ -z "$VIDEO_URL" ]; then
+              VIDEO_URL=$(yt-dlp --cookies cookies.txt --js-runtime node -f "best[height<=720]" -g "$LINK_SUMBER" 2>/dev/null)
+            fi
+
+            if [ -z "$VIDEO_URL" ]; then
+              echo "Gagal ambil URL. Stream sumber mungkin offline atau Cookies invalid."
+              echo "Akan mencoba lagi dalam 10 detik..."
+              sleep 10
+              continue
+            fi
+
+            echo "SUMBER DITEMUKAN! Memulai Streaming..."
+
+            ffmpeg -re -i "$VIDEO_URL" \
+              -stream_loop -1 -i logo_video.mp4 \
+              -filter_complex "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=85:-1[logo]; [0:v][logo]overlay=W-w-25:25:shortest=1" \
+              -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
+              -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -ar 44100 -b:a 128k \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
+
+            echo "Stream terputus/selesai. Restarting loop..."
+            sleep 5
+          done
