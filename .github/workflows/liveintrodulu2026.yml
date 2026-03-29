@@ -1,4 +1,4 @@
-name: YouTube Relay Pro (Intro & Center Logo)
+name: YouTube Relay Pro (Intro & Overlay Fix)
 
 on:
   workflow_dispatch:
@@ -36,9 +36,9 @@ jobs:
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          # Validasi file aset
+          # Cek ketersediaan file aset di repository
           if [ ! -f "logo_video.mp4" ] || [ ! -f "intrologo2026.mp4" ]; then
-            echo "FATAL ERROR: File logo_video.mp4 atau intrologo2026.mp4 tidak ditemukan di repo!"
+            echo "FATAL ERROR: File logo_video.mp4 atau intrologo2026.mp4 tidak ditemukan!"
             ls -R
             exit 1
           fi
@@ -64,18 +64,19 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Intro & Logo..."
 
             # FILTER EXPLANATION:
-            # [0:v] = Video Utama (YouTube)
-            # [1:v] = Intro (Akan fade out di detik 10-12)
-            # [2:v] = Logo (Diproses transparansi & diletakkan di tengah)
-            
+            # 1. [1:v] Scale & Pad: Memaksa intro jadi 1280x720 & tambah fade out detik 10-12.
+            # 2. [2:v] Logo Clean: Crop & Colorkey hijau untuk logo transparan.
+            # 3. [0:v][logo_clean] Overlay: Pasang logo di pojok kanan atas (W-w-25:25).
+            # 4. [v_with_logo][intro_faded] Overlay: Pasang intro di layer teratas hanya 12 detik pertama.
+
             ffmpeg -re -i "$VIDEO_URL" -i intrologo2026.mp4 -stream_loop -1 -i logo_video.mp4 \
               -filter_complex \
-              "[2:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=150:-1[logo_clean]; \
-               [1:v]fade=t=out:st=10:d=2[intro_faded]; \
-               [0:v][logo_clean]overlay=(W-w)/2:(H-h)/2[v_with_logo]; \
+              "[1:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fade=t=out:st=10:d=2[intro_faded]; \
+               [2:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=85:-1[logo_clean]; \
+               [0:v][logo_clean]overlay=W-w-25:25[v_with_logo]; \
                [v_with_logo][intro_faded]overlay=0:0:enable='lte(t,12)'[v_final]" \
               -map "[v_final]" -map 0:a \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
@@ -83,7 +84,7 @@ jobs:
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus atau video selesai. Mengulang dalam 5 detik..."
+            echo "Stream terputus. Mengulang dalam 5 detik..."
             sleep 5
           done
           
