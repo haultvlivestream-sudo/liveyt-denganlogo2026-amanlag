@@ -1,0 +1,42 @@
+name: YouTube Live Loop Intro Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      kunci_rtmp:
+        description: 'Stream Key YouTube'
+        required: true
+
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install FFmpeg
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: 3. Jalankan Loop Intro
+        run: |
+          # Validasi apakah file intro ada
+          if [ ! -f "intrologo2026.mp4" ]; then
+            echo "FATAL ERROR: File intrologo2026.mp4 tidak ditemukan di repository!"
+            ls -R
+            exit 1
+          fi
+
+          echo "Memulai Live Loop: intrologo2026.mp4"
+
+          # LOGIKA:
+          # -stream_loop -1 = Mengulang video selamanya (looping).
+          # scale=1280:720 = Memastikan output tetap Full HD 720p.
+          # -re = Membaca input sesuai dengan frame rate aslinya (penting untuk live).
+
+          ffmpeg -re -stream_loop -1 -i intrologo2026.mp4 \
+            -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" \
+            -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
+            -g 60 -keyint_min 60 -sc_threshold 0 \
+            -c:a aac -ar 44100 -b:a 128k \
+            -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
