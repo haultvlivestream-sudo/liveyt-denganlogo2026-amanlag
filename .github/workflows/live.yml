@@ -37,7 +37,7 @@ jobs:
           echo "$YT_COOKIES" > cookies.txt
           
           # Cek apakah file logo benar-benar ada di folder repo
-          if [ ! -f "logo_video.mp4" ]; then
+          if [ ! -f "logoihya2026.mp4" ]; then
             echo "FATAL ERROR: File logo_video.mp4 tidak ditemukan di repository!"
             ls -R # List file untuk debugging
             exit 1
