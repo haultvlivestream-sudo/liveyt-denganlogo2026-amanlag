@@ -1,4 +1,4 @@
-name: YouTube Relay Pro (Auto 06:00 WIB - Hardcoded)
+name: YouTube Relay Pro (Auto 05:00 WIB - Hardcoded)
 
 on:
   # Trigger Manual
@@ -13,8 +13,8 @@ on:
   
   # Trigger Otomatis (Jadwal)
   schedule:
-    # Jam 23:00 UTC = Jam 06:00 WIB (Pagi)
-    - cron: '0 23 * * *'
+    # Jam 22:00 UTC = Jam 05:00 WIB (Pagi)
+    - cron: '0 22 * * *'
 
 jobs:
   streaming:
@@ -44,14 +44,14 @@ jobs:
           MANUAL_KEY: ${{ github.event.inputs.kunci_rtmp }}
 
           # === HARDCODED DEFAULT (DIPERBARUI) ===
-          DEFAULT_LINK: 'https://www.youtube.com/live/nPdLqWtE0T0?si=dOX1BFW3o4Ad1s6Q'
+          DEFAULT_LINK: 'https://www.youtube.com/live/ArM-mjgTVpE?si=GI-qHA0nXQcDYLVS'
           DEFAULT_KEY: '6wge-uwsf-d5da-0fqb-fmdw'
           
         run: |
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          # Nama file logo yang diperbarui
+          # Nama file logo
           LOGO_FILE="logoihya2026.mp4"
 
           # Cek file logo
@@ -104,7 +104,7 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Memulai Streaming..."
 
-            # Eksekusi FFmpeg dengan Filter Logo dan Chromakey Baru (#01820B)
+            # Eksekusi FFmpeg dengan Filter Logo dan Chromakey (#01820B)
             if [ -f "$LOGO_FILE" ]; then
               ffmpeg -re -i "$VIDEO_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
