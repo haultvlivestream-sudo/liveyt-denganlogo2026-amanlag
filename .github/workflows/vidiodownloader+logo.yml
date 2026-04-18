@@ -1,0 +1,86 @@
+name: Potong Video YouTube (1080p HD + Custom Logo)
+
+on:
+  workflow_dispatch:
+    inputs:
+      link_youtube:
+        description: 'Link YouTube (Video Sumber)'
+        required: true
+      mulai:
+        description: 'Mulai (Jam:Menit:Detik)'
+        default: '00:00:10'
+      selesai:
+        description: 'Selesai (Jam:Menit:Detik)'
+        default: '00:00:40'
+
+jobs:
+  proses_editing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Install Tools (Optimized)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl bc
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+
+      - name: 4. Eksekusi Potong & Tambah Logo (1080p)
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          # Simpan cookies jika ada
+          if [ -n "$YT_COOKIES" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
+          
+          # Cek keberadaan file logo di repo (sesuai nama file kamu)
+          LOGO_FILE="logo_video.mp4"
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "PERINGATAN: $LOGO_FILE tidak ditemukan, mencoba mencari file mp4 lain untuk logo..."
+            LOGO_FILE=$(ls *.mp4 | grep -v "hasil" | head -n 1)
+          fi
+          echo "Menggunakan logo: $LOGO_FILE"
+
+          echo "--- [Mencari Direct Link 1080p] ---"
+          VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                             --force-ipv4 \
+                             --no-playlist \
+                             -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+                             -g "${{ github.event.inputs.link_youtube }}")
+
+          if [ -z "$VIDEO_URL" ]; then
+            echo "ERROR: Gagal mendapatkan URL 1080p."
+            exit 1
+          fi
+
+          echo "--- [Memulai Proses Render 1080p + Logo] ---"
+          # LOGIKA FILTER:
+          # 1. Mengambil durasi video utama (-ss ke -to)
+          # 2. Mengambil logo dan looping (-stream_loop -1)
+          # 3. Filter Complex: 
+          #    - [1:v] Mengolah logo: potong jadi kotak (crop), hilangkan warna hijau (colorkey), kecilkan skala (scale=150)
+          #    - [0:v][logo] Overlay: Pasang di pojok kanan atas (W-w-25:25)
+          
+          ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i "$VIDEO_URL" \
+          -stream_loop -1 -i "$LOGO_FILE" \
+          -filter_complex "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=150:-1[logo]; [0:v][logo]overlay=W-w-30:30:shortest=1" \
+          -c:v libx264 -preset medium -crf 17 -c:a aac -b:a 256k \
+          -movflags +faststart \
+          hasil_1080p_berlogo.mp4
+
+      - name: 5. Upload Hasil
+        uses: actions/upload-artifact@v4
+        with:
+          name: Video_HD_Berlogo
+          path: hasil_1080p_berlogo.mp4
+          retention-days: 1
