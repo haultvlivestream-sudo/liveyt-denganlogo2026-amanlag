@@ -1,4 +1,4 @@
-Name: YouTube Relay Pro Live Delay
+name: YouTube Relay Pro Live Delay
 
 on:
   workflow_dispatch:
