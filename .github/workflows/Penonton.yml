@@ -1,4 +1,4 @@
-name: YouTube Multi-Viewer Bot (Cookies Bypass)
+name: YouTube Multi-Viewer Bot (Final Fix - FFmpeg)
 
 on:
   workflow_dispatch:
@@ -16,36 +16,37 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 2. Install Tools
+      - name: 2. Install Tools (FFmpeg & yt-dlp)
         run: |
           sudo apt-get update
+          # Menginstal ffmpeg secara eksplisit
+          sudo apt-get install -y ffmpeg
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
       - name: 3. Eksekusi Strategi Penonton
         env:
           YT_LINK: ${{ github.event.inputs.link_youtube }}
-          YT_COOKIES: ${{ secrets.YT_COOKIES }} # Mengambil cookies dari Secret GitHub
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          # Simpan cookies ke file temporary
           echo "$YT_COOKIES" > cookies.txt
 
           run_viewer() {
-            # Menggunakan --cookies cookies.txt untuk bypass deteksi bot
+            # Menambahkan --ffmpeg-location agar yt-dlp tidak bingung
             timeout 900s yt-dlp --js-runtime node \
               --cookies cookies.txt \
               --force-ipv4 \
               --extractor-args "youtube:player_client=mweb,web" \
               -f "worst[height<=144]" \
-              --no-part --no-cache-dir --limit-rate 30K \
+              --no-part --no-cache-dir --limit-rate 50K \
               --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
               "$YT_LINK" -o /dev/null || true
           }
 
-          echo "Memulai bot dengan Cookies Bypass..."
+          echo "Memulai bot dengan FFmpeg Support..."
           
           while true; do
-            echo "--- [$(date)] Mencoba Menembus Stream dengan Cookies ---"
+            echo "--- [$(date)] Siklus 15 Menit Dimulai ---"
             
             for i in {1..10}
             do
@@ -54,10 +55,10 @@ jobs:
                sleep 30
             done
 
-            echo "10 Penonton sedang berjalan. Menunggu 15 menit..."
+            echo "10 Penonton sedang aktif..."
             sleep 900
 
-            echo "Reset koneksi..."
+            echo "Siklus selesai. Membersihkan proses..."
             killall yt-dlp || true
             sleep 5
           done
