@@ -1,4 +1,4 @@
-name: YouTube Multi-Viewer Bot (Final Fix - FFmpeg)
+name: YouTube Viewer Bot (3 Slots - 240p)
 
 on:
   workflow_dispatch:
@@ -16,15 +16,14 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 2. Install Tools (FFmpeg & yt-dlp)
+      - name: 2. Install Tools (Wajib untuk Live)
         run: |
           sudo apt-get update
-          # Menginstal ffmpeg secara eksplisit
           sudo apt-get install -y ffmpeg
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      - name: 3. Eksekusi Strategi Penonton
+      - name: 3. Menjalankan 3 Penonton Aktif (240p)
         env:
           YT_LINK: ${{ github.event.inputs.link_youtube }}
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
@@ -32,34 +31,44 @@ jobs:
           echo "$YT_COOKIES" > cookies.txt
 
           run_viewer() {
-            # Menambahkan --ffmpeg-location agar yt-dlp tidak bingung
+            local id=$1
+            UA_LIST=(
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+              "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
+              "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+            )
+            RAND_UA=${UA_LIST[$[$id % 3]]}
+
+            echo "Penonton $id masuk (240p)..."
+
+            # Limit rate 300K untuk kualitas 240p agar dianggap penonton aktif
+            # Format diatur ke 240p (worst[height<=240])
             timeout 900s yt-dlp --js-runtime node \
               --cookies cookies.txt \
               --force-ipv4 \
-              --extractor-args "youtube:player_client=mweb,web" \
-              -f "worst[height<=144]" \
-              --no-part --no-cache-dir --limit-rate 50K \
-              --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-              "$YT_LINK" -o /dev/null || true
+              --ignore-errors \
+              --no-part --no-cache-dir \
+              --limit-rate 300K \
+              --user-agent "$RAND_UA" \
+              -f "worst[height<=240]/92/93" \
+              "$YT_LINK" -o - | ffmpeg -i - -f null - 2>/dev/null || true
           }
 
-          echo "Memulai bot dengan FFmpeg Support..."
-          
           while true; do
-            echo "--- [$(date)] Siklus 15 Menit Dimulai ---"
+            echo "--- [$(date)] Siklus 3 Penonton Dimulai ---"
             
-            for i in {1..10}
+            for i in {1..3}
             do
-               echo "Penonton $i masuk..."
-               run_viewer &
-               sleep 30
+               run_viewer $i &
+               # Jeda 45 detik agar kenaikan viewer terlihat alami
+               sleep 45
             done
 
-            echo "10 Penonton sedang aktif..."
-            sleep 900
+            echo "3 Penonton aktif di 240p. Menunggu siklus 15 menit..."
+            sleep 765
 
-            echo "Siklus selesai. Membersihkan proses..."
-            killall yt-dlp || true
-            sleep 5
+            echo "Refresh penonton..."
+            killall yt-dlp ffmpeg || true
+            sleep 10
           done
           
