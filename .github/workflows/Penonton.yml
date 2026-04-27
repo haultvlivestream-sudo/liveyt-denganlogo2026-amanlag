@@ -1,4 +1,4 @@
-name: YouTube Multi-Viewer Bot (Sequential & Restart)
+name: YouTube Multi-Viewer Bot (Fixed & Node Runtime)
 
 on:
   workflow_dispatch:
@@ -6,41 +6,48 @@ on:
       link_youtube:
         description: 'Link Video YouTube'
         required: true
-      total_durasi_jam:
-        description: 'Total script berjalan (jam)'
-        required: true
-        default: '6'
 
 jobs:
   viewing:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Install Tools
+      - name: 1. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 2. Install Tools
         run: |
           sudo apt-get update
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      - name: 2. Eksekusi Strategi Penonton
+      - name: 3. Eksekusi Strategi Penonton
         env:
           YT_LINK: ${{ github.event.inputs.link_youtube }}
         run: |
-          # Fungsi untuk satu viewer
           run_viewer() {
-            # timeout 15 menit (900 detik)
-            timeout 900s yt-dlp -f "worst[height<=144]" \
+            # Menggunakan --js-runtime node untuk mengatasi warning JS
+            timeout 900s yt-dlp --js-runtime node \
+              -f "worst[height<=144]" \
               --no-part --no-cache-dir --limit-rate 30K \
               --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
               "$YT_LINK" -o /dev/null || true
           }
 
-          echo "Memulai bot dengan rotasi 15 menit..."
+          echo "Memulai bot..."
           
-          # Looping utama agar terus berjalan sampai limit waktu GitHub (6 jam)
           while true; do
-            echo "--- [$(date)] Siklus Baru Dimulai ---"
+            # Cek apakah Live sudah mulai
+            # Jika belum mulai, yt-dlp akan return error, kita tunggu 1 menit lalu cek lagi
+            if ! yt-dlp --js-runtime node --get-id "$YT_LINK" > /dev/null 2>&1; then
+              echo "--- [$(date)] Live belum mulai atau link salah. Menunggu 1 menit... ---"
+              sleep 60
+              continue
+            fi
+
+            echo "--- [$(date)] Live Terdeteksi! Memulai Siklus 15 Menit ---"
             
-            # Menambah 10 penonton secara bertahap setiap 30 detik
             for i in {1..10}
             do
                echo "Penonton $i masuk..."
@@ -48,14 +55,11 @@ jobs:
                sleep 30
             done
 
-            echo "Semua 10 penonton sudah masuk. Menunggu siklus 15 menit selesai..."
-            
-            # Tunggu sisa waktu hingga total siklus mencapai 15 menit (900 detik)
-            # Karena 10 penonton x 30 detik = 300 detik sudah terpakai di atas, 
-            # kita tunggu 600 detik lagi agar total siklus jadi 15 menit.
+            echo "10 Penonton aktif. Menunggu sisa waktu..."
             sleep 600
 
-            echo "Siklus 15 menit berakhir. Membersihkan proses dan restart..."
+            echo "Siklus berakhir. Restarting..."
             killall yt-dlp || true
             sleep 5
           done
+          
