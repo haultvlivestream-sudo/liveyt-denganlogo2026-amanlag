@@ -1,4 +1,4 @@
-name: YouTube Multi-Viewer Bot (Bypass Mode)
+name: YouTube Multi-Viewer Bot (Cookies Bypass)
 
 on:
   workflow_dispatch:
@@ -25,33 +25,36 @@ jobs:
       - name: 3. Eksekusi Strategi Penonton
         env:
           YT_LINK: ${{ github.event.inputs.link_youtube }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }} # Mengambil cookies dari Secret GitHub
         run: |
+          # Simpan cookies ke file temporary
+          echo "$YT_COOKIES" > cookies.txt
+
           run_viewer() {
-            # Menggunakan mweb (mobile web) agar lebih ringan dan mudah tembus
+            # Menggunakan --cookies cookies.txt untuk bypass deteksi bot
             timeout 900s yt-dlp --js-runtime node \
+              --cookies cookies.txt \
               --force-ipv4 \
               --extractor-args "youtube:player_client=mweb,web" \
               -f "worst[height<=144]" \
               --no-part --no-cache-dir --limit-rate 30K \
-              --user-agent "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" \
+              --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
               "$YT_LINK" -o /dev/null || true
           }
 
-          echo "Memulai bot dengan Bypass Mode..."
+          echo "Memulai bot dengan Cookies Bypass..."
           
           while true; do
-            echo "--- [$(date)] Mencoba Menembus Stream ---"
+            echo "--- [$(date)] Mencoba Menembus Stream dengan Cookies ---"
             
-            # Kita langsung hajar jalankan viewer tanpa check berlebih 
-            # agar tidak kena limit pengecekan metadata
             for i in {1..10}
             do
-               echo "Upaya Penonton $i masuk..."
+               echo "Penonton $i masuk..."
                run_viewer &
                sleep 30
             done
 
-            echo "10 Upaya koneksi berjalan. Tunggu 15 menit..."
+            echo "10 Penonton sedang berjalan. Menunggu 15 menit..."
             sleep 900
 
             echo "Reset koneksi..."
