@@ -1,4 +1,4 @@
-name: YouTube Multi-Viewer Bot (Full Script)
+name: YouTube Multi-Viewer Bot (Bypass Mode)
 
 on:
   workflow_dispatch:
@@ -6,10 +6,6 @@ on:
       link_youtube:
         description: 'Link Video YouTube'
         required: true
-      total_durasi_jam:
-        description: 'Total script berjalan (jam)'
-        required: true
-        default: '6'
 
 jobs:
   viewing:
@@ -30,45 +26,35 @@ jobs:
         env:
           YT_LINK: ${{ github.event.inputs.link_youtube }}
         run: |
-          # Fungsi untuk menjalankan 1 sesi penonton
           run_viewer() {
-            # timeout 15 menit (900 detik)
+            # Menggunakan mweb (mobile web) agar lebih ringan dan mudah tembus
             timeout 900s yt-dlp --js-runtime node \
-              --ignore-no-formats-error \
+              --force-ipv4 \
+              --extractor-args "youtube:player_client=mweb,web" \
               -f "worst[height<=144]" \
-              --no-part \
-              --no-cache-dir \
-              --limit-rate 30K \
-              --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+              --no-part --no-cache-dir --limit-rate 30K \
+              --user-agent "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" \
               "$YT_LINK" -o /dev/null || true
           }
 
-          echo "Memulai bot..."
+          echo "Memulai bot dengan Bypass Mode..."
           
           while true; do
-            # Cek apakah stream sudah benar-benar tersedia (get-url)
-            if ! yt-dlp --js-runtime node -g "$YT_LINK" > /dev/null 2>&1; then
-              echo "--- [$(date)] Menunggu Stream Siap / Video Belum Mulai ---"
-              sleep 30
-              continue
-            fi
-
-            echo "--- [$(date)] STREAM TERDETEKSI! Memulai Siklus Penonton ---"
+            echo "--- [$(date)] Mencoba Menembus Stream ---"
             
-            # Memasukkan 10 penonton secara bertahap (setiap 30 detik)
+            # Kita langsung hajar jalankan viewer tanpa check berlebih 
+            # agar tidak kena limit pengecekan metadata
             for i in {1..10}
             do
-               echo "Penonton $i masuk..."
+               echo "Upaya Penonton $i masuk..."
                run_viewer &
                sleep 30
             done
 
-            echo "10 Penonton sudah masuk semua. Menunggu sisa siklus 15 menit..."
-            
-            # 300 detik sudah terpakai di loop (10x30s), sisa 600 detik agar genap 15 menit
-            sleep 600
+            echo "10 Upaya koneksi berjalan. Tunggu 15 menit..."
+            sleep 900
 
-            echo "--- [$(date)] Siklus 15 Menit Selesai. Restarting... ---"
+            echo "Reset koneksi..."
             killall yt-dlp || true
             sleep 5
           done
