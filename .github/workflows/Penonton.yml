@@ -1,4 +1,4 @@
-name: YouTube Multi-Viewer Bot (Fixed & Node Runtime)
+name: YouTube Multi-Viewer Bot (Full Script)
 
 on:
   workflow_dispatch:
@@ -6,6 +6,10 @@ on:
       link_youtube:
         description: 'Link Video YouTube'
         required: true
+      total_durasi_jam:
+        description: 'Total script berjalan (jam)'
+        required: true
+        default: '6'
 
 jobs:
   viewing:
@@ -26,11 +30,15 @@ jobs:
         env:
           YT_LINK: ${{ github.event.inputs.link_youtube }}
         run: |
+          # Fungsi untuk menjalankan 1 sesi penonton
           run_viewer() {
-            # Menggunakan --js-runtime node untuk mengatasi warning JS
+            # timeout 15 menit (900 detik)
             timeout 900s yt-dlp --js-runtime node \
+              --ignore-no-formats-error \
               -f "worst[height<=144]" \
-              --no-part --no-cache-dir --limit-rate 30K \
+              --no-part \
+              --no-cache-dir \
+              --limit-rate 30K \
               --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
               "$YT_LINK" -o /dev/null || true
           }
@@ -38,16 +46,16 @@ jobs:
           echo "Memulai bot..."
           
           while true; do
-            # Cek apakah Live sudah mulai
-            # Jika belum mulai, yt-dlp akan return error, kita tunggu 1 menit lalu cek lagi
-            if ! yt-dlp --js-runtime node --get-id "$YT_LINK" > /dev/null 2>&1; then
-              echo "--- [$(date)] Live belum mulai atau link salah. Menunggu 1 menit... ---"
-              sleep 60
+            # Cek apakah stream sudah benar-benar tersedia (get-url)
+            if ! yt-dlp --js-runtime node -g "$YT_LINK" > /dev/null 2>&1; then
+              echo "--- [$(date)] Menunggu Stream Siap / Video Belum Mulai ---"
+              sleep 30
               continue
             fi
 
-            echo "--- [$(date)] Live Terdeteksi! Memulai Siklus 15 Menit ---"
+            echo "--- [$(date)] STREAM TERDETEKSI! Memulai Siklus Penonton ---"
             
+            # Memasukkan 10 penonton secara bertahap (setiap 30 detik)
             for i in {1..10}
             do
                echo "Penonton $i masuk..."
@@ -55,10 +63,12 @@ jobs:
                sleep 30
             done
 
-            echo "10 Penonton aktif. Menunggu sisa waktu..."
+            echo "10 Penonton sudah masuk semua. Menunggu sisa siklus 15 menit..."
+            
+            # 300 detik sudah terpakai di loop (10x30s), sisa 600 detik agar genap 15 menit
             sleep 600
 
-            echo "Siklus berakhir. Restarting..."
+            echo "--- [$(date)] Siklus 15 Menit Selesai. Restarting... ---"
             killall yt-dlp || true
             sleep 5
           done
