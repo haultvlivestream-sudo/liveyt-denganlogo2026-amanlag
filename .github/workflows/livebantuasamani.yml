@@ -1,4 +1,4 @@
-name: Live Bantu Asamani (Direct Stream Fix)
+name: YouTube Relay Pro (Direct Stream Fix)
 
 on:
   workflow_dispatch:
@@ -66,10 +66,10 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # UPDATE: scale=170:-1 membuat logo 2x lebih besar dari sebelumnya
+            # UPDATE: scale=130:-1 (Ukuran sedang, pas di pojok)
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i logoasamanitv.mp4 \
-              -filter_complex "[1:v]crop=ih:ih,colorkey=0x0505C8:0.1:0.1,scale=170:-1[logo]; [0:v][logo]overlay=W-w-25:25:shortest=1" \
+              -filter_complex "[1:v]crop=ih:ih,colorkey=0x0505C8:0.1:0.1,scale=130:-1[logo]; [0:v][logo]overlay=W-w-25:25:shortest=1" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
               -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
