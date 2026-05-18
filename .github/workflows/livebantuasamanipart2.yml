@@ -47,10 +47,10 @@ jobs:
             exit 1
           fi
 
-          echo --- [$(date)] Menghubungkan Sumber & Memulai FFmpeg ---
+          # Sudah diperbaiki dengan tanda petik agar tidak error 127
+          echo "--- [$(date)] Menghubungkan Sumber & Memulai FFmpeg ---"
 
-          # PERBAIKAN: Menggunakan format "b" (best) atau yang sudah include video+audio dalam satu stream.
-          # Menambahkan format allocator mp4 agar FFmpeg langsung mengenali track videonya.
+          # Menggunakan ukuran logo 50% (scale=iw*0.50)
           yt-dlp --cookies cookies.txt \
                  --js-runtime node \
                  --force-ipv4 \
@@ -65,5 +65,5 @@ jobs:
             -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -ar 44100 -b:a 128k \
-            -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            -f flv "rtmp://x.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
             
