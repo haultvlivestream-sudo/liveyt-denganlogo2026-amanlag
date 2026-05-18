@@ -69,10 +69,10 @@ jobs:
 
           echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-          # UKURAN LOGO FIXED 70PX (KECIL & PAS), AMAN TANPA GEPENG
+          # POSISI LOGO DISESUAIKAN: overlay=W-w-20:20 (Lebih ke atas dan lebih ke kanan)
           ffmpeg -re -i "$VIDEO_URL" \
             -stream_loop -1 -i logoasamanitv.mp4 \
-            -filter_complex "[1:v]colorkey=0x0505C8:0.1:0.1,scale=70:-1[logo]; [0:v][logo]overlay=W-w-35:35:shortest=1" \
+            -filter_complex "[1:v]colorkey=0x0505C8:0.1:0.1,scale=70:-1[logo]; [0:v][logo]overlay=W-w-20:20:shortest=1" \
             -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
             -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -ar 44100 -b:a 128k \
