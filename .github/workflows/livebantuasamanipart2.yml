@@ -51,12 +51,21 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
             
-            # Menggunakan format pencarian kualitas tertinggi tanpa batasan resolusi
-            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
-                               --js-runtime node \
-                               --force-ipv4 \
-                               -f "bestvideo+bestaudio/best" \
-                               -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+            # MEMISAHKAN DIRECT URL VIDEO DAN AUDIO (Agar Mendapatkan Resolusi Tertinggi Nyata)
+            # Baris pertama diambil sebagai Video, baris kedua diambil sebagai Audio
+            STREAM_LINKS=$(yt-dlp --cookies cookies.txt \
+                                 --js-runtime node \
+                                 --force-ipv4 \
+                                 -f "bestvideo+bestaudio/best" \
+                                 -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+
+            VIDEO_URL=$(echo "$STREAM_LINKS" | sed -n '1p')
+            AUDIO_URL=$(echo "$STREAM_LINKS" | sed -n '2p')
+
+            # Jika Audio URL kosong, berarti video tersebut tipe format 'best' gabungan (single url)
+            if [ -z "$AUDIO_URL" ]; then
+              AUDIO_URL="$VIDEO_URL"
+            fi
 
             if [ -z "$VIDEO_URL" ]; then
               echo "Gagal ambil URL. Cek Cookies atau Link!"
@@ -64,19 +73,22 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Jalur Video & Audio Terpisah..."
 
-            # FIX ERROR 403 FORBIDDEN:
-            # Menyertakan -headers User-Agent dan -cookies_file SEBELUM input video (-i "$VIDEO_URL")
-            # agar YouTube tidak memblokir koneksi dari FFmpeg.
+            # EKSEKUSI FFMPEG DIRECT STREAM FIX:
+            # -i [0] = Jalur Video Utama
+            # -i [1] = Jalur Audio Utama
+            # -i [2] = File Logo Kamu
+            # Mencegah Error 403 dengan menyisipkan headers & cookies di tiap input network YouTube
+            
             ffmpeg -re \
-              -headers "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" \
-              -cookies_file cookies.txt \
-              -i "$VIDEO_URL" \
+              -headers "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" -cookies_file cookies.txt -i "$VIDEO_URL" \
+              -headers "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" -cookies_file cookies.txt -i "$AUDIO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
-              "[1:v]colorkey=0x0505C8:0.1:0.1,scale=iw*0.12:-1[logo]; \
+              "[2:v]colorkey=0x0505C8:0.1:0.1,scale=iw*0.12:-1[logo]; \
                [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
+              -map 1:a \
               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
