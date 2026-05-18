@@ -1,4 +1,4 @@
-name: Live Bantu Asamani Part 2 - Fixed Logo
+name: Live Bantu Asamani Part 2 - Logo Fix 16-9
 
 on:
   workflow_dispatch:
@@ -64,10 +64,10 @@ jobs:
 
           echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-          # FIX ANTI GEPENG: Menggunakan setsar=1 dan scale force_original_aspect_ratio
+          # PERBAIKAN AKURAT: setsar=1 untuk mengunci pixel kotak, h=-1 menjaga rasio, overlay disesuaikan posisinya
           ffmpeg -re -i "$VIDEO_URL" \
             -stream_loop -1 -i logoasamanitv.mp4 \
-            -filter_complex "[1:v]setsar=1,crop=ih:ih,colorkey=0x0505C8:0.1:0.1[cleaned]; [cleaned][0:v]scale2ref=w=main_w*0.12:h=main_h*0.12:force_original_aspect_ratio=decrease[logo][main]; [main][logo]overlay=W-w-25:25:shortest=1" \
+            -filter_complex "[1:v]setsar=1,colorkey=0x0505C8:0.1:0.1[logo_clear]; [logo_clear][0:v]scale2ref=w=main_w*0.12:h=-1[logo_scaled][main]; [main][logo_scaled]overlay=W-w-30:30:shortest=1" \
             -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
             -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -ar 44100 -b:a 128k \
