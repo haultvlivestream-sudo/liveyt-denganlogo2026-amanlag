@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '20'
 
-      # FIX: Memaksa Github Actions memperbarui PATH sistem agar Node.js terbaca global oleh yt-dlp
+      # FIX PATH: Memastikan Node.js terbaca global oleh yt-dlp di GitHub Actions
       - name: Fix Node.js Path
         run: echo "$(dirname $(which node))" >> $GITHUB_PATH
 
@@ -37,56 +37,48 @@ jobs:
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          # set +e digunakan agar jika yt-dlp/ffmpeg gagal, loop tetap berjalan tidak langsung mati
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          # Cek file logo utama kamu
-          if [ ! -f "logoasamanitv.mp4" ]; then
-            echo "FATAL ERROR: File logoasamanitv.mp4 tidak ditemukan di repository!"
-            ls -R
+          # Memastikan file logo utama kamu ada
+          LOGO_FILE="logoasamanitv.mp4"
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
+            ls
             exit 1
           fi
 
           while true; do
-            echo "--- [$(date)] Mencari Direct Link Kualitas Tertinggi ---"
+            echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
             
-            # RESOLUSI TERTINGGI: Batasan height dicopot agar dapet kualitas maksimal (2K/1080p/720p tergantung sumber)
-            # ERROR LOG: 2>/dev/null dihapus supaya kalau node js error, pesan errornya muncul di log GitHub
+            # Menggunakan format pencarian kualitas tertinggi dari script acuan baru
             VIDEO_URL=$(yt-dlp --cookies cookies.txt \
                                --js-runtime node \
                                --force-ipv4 \
-                               --no-playlist \
-                               --extractor-args "youtube:player_client=mweb,web" \
-                               -f "best[protocol!=m3u8_native][protocol!=m3u8]" \
-                               -g "${{ github.event.inputs.link_youtube }}")
+                               -f "bestvideo+bestaudio/best" \
+                               -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
 
             if [ -z "$VIDEO_URL" ]; then
-              VIDEO_URL=$(yt-dlp --cookies cookies.txt --js-runtime node -f "best" -g "${{ github.event.inputs.link_youtube }}")
-            fi
-
-            if [ -z "$VIDEO_URL" ]; then
-              echo "Gagal ambil URL. Cek Cookies atau Log Error Node diatas!"
-              sleep 10
+              echo "Gagal ambil URL. Cek Cookies atau Link!"
+              sleep 5
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
 
-            # FILTER LOGO PROPORSIONAL & FIX AUDIO MAPPING:
-            # 1. Struktur scale2ref diperbaiki agar output video utama dialirkan dengan benar ke overlay.
-            # 2. Menghapus shortest=1 agar stream tidak bug/berhenti mendadak akibat looping logo.
-            # 3. Menambahkan -map 0:a secara eksplisit agar Audio yang diambil HANYA dari video utama (bukan dari logo).
+            # FIX CHROMA KEY: Mengembalikan warna transparansi ke 0x0505C8 sesuai bawaan logoasamanitv
+            # LOGIHA FILTER SCRIPT BARU: Logo otomatis 12% dari lebar layar dan jarak aman 2% dari tepi
             ffmpeg -re -i "$VIDEO_URL" \
-              -stream_loop -1 -i logoasamanitv.mp4 \
-              -filter_complex "[1:v]crop=ih:ih,colorkey=0x0505C8:0.1:0.1[logo_trans]; [logo_trans][0:v]scale2ref=w='iw*0.07':h='ow/mdar'[logo_scaled][main_video]; [main_video][logo_scaled]overlay=W-w-25:25" \
-              -map 0:a \
-              -c:v libx264 -preset veryfast -b:v 5000k -maxrate 6000k -bufsize 10000k \
-              -g 60 -keyint_min 60 -sc_threshold 0 \
+              -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex \
+              "[1:v]colorkey=0x0505C8:0.1:0.1,scale=iw*0.12:-1[logo]; \
+               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
+              -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://x.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus atau selesai. Mengulang mencari link dalam 5 detik..."
+            echo "Stream terputus. Mengulang dalam 5 detik..."
             sleep 5
           done
           
