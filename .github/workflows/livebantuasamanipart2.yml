@@ -73,11 +73,14 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # FILTER LOGO PROPORSIONAL: Menggunakan scale2ref agar logo otomatis berukuran 7% dari lebar video utama.
-            # Jadi, mau dapet resolusi 720p atau 1080p atau bahkan 4K, ukuran besar logonya akan selalu seimbang (tidak mengecil).
+            # FILTER LOGO PROPORSIONAL & FIX AUDIO MAPPING:
+            # 1. Struktur scale2ref diperbaiki agar output video utama dialirkan dengan benar ke overlay.
+            # 2. Menghapus shortest=1 agar stream tidak bug/berhenti mendadak akibat looping logo.
+            # 3. Menambahkan -map 0:a secara eksplisit agar Audio yang diambil HANYA dari video utama (bukan dari logo).
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i logoasamanitv.mp4 \
-              -filter_complex "[1:v]crop=ih:ih,colorkey=0x0505C8:0.1:0.1[logo_trans]; [0:v][logo_trans]scale2ref=w='iw*0.07':h='ow/mdar'[main][logo]; [main][logo]overlay=W-w-25:25:shortest=1" \
+              -filter_complex "[1:v]crop=ih:ih,colorkey=0x0505C8:0.1:0.1[logo_trans]; [logo_trans][0:v]scale2ref=w='iw*0.07':h='ow/mdar'[logo_scaled][main_video]; [main_video][logo_scaled]overlay=W-w-25:25" \
+              -map 0:a \
               -c:v libx264 -preset veryfast -b:v 5000k -maxrate 6000k -bufsize 10000k \
               -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
