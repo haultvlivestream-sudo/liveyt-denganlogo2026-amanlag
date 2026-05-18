@@ -49,12 +49,12 @@ jobs:
 
           echo "--- [$(date)] Menghubungkan Sumber & Memulai FFmpeg ---"
 
-          # Menggunakan yt-dlp untuk streaming data dan di-pipe langsung ke FFmpeg
-          # Opsi "-o -" mengirimkan output video langsung ke input FFmpeg tanpa membuat file sementara
+          # PERBAIKAN: Menggunakan format "b" (best) atau yang sudah include video+audio dalam satu stream.
+          # Menambahkan format allocator mp4 agar FFmpeg langsung mengenali track videonya.
           yt-dlp --cookies cookies.txt \
                  --js-runtime node \
                  --force-ipv4 \
-                 -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best" \
+                 -f "best[ext=mp4]/best" \
                  -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg -re \
             -i - \
