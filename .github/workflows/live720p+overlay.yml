@@ -1,4 +1,4 @@
-name: Live YouTube Relay + Overlay Tanggal
+name: Live Relay + Overlay Tanggal
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 1. Checkout Repository
-        uses: actions/checkout@v4 # Membaca file logoihya2026.mp4 dan tanggaloverlay.png di repo
+        uses: actions/checkout@v4
 
       - name: 2. Install Node.js
         uses: actions/setup-node@v4
@@ -36,7 +36,7 @@ jobs:
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          # Cek ketersediaan file aset dengan nama baru
+          # Pengecekan file aset di repository
           if [ ! -f "logoihya2026.mp4" ] || [ ! -f "tanggaloverlay.png" ]; then
             echo "FATAL ERROR: File logoihya2026.mp4 atau tanggaloverlay.png tidak ditemukan di repository!"
             ls -R 
@@ -66,15 +66,19 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # Input 0: Video Utama, Input 1: Logo MP4 Baru, Input 2: Tanggal PNG
+            # Urutan Filter: 
+            # 1. Olah video logoihya2026.mp4 dengan colorkey asli (0x0505C8) & scale 85
+            # 2. Olah gambar tanggaloverlay.png diperbesar ke skala lebar 250
+            # 3. Tempel logo di kanan atas (W-w-25:25)
+            # 4. Tempel PNG di kiri atas (25:25) memberikan spasi ideal dari tepi
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i logoihya2026.mp4 \
               -stream_loop -1 -i tanggaloverlay.png \
               -filter_complex \
               "[1:v]crop=ih:ih,colorkey=0x0505C8:0.1:0.1,scale=85:-1[logo]; \
-               [2:v]scale=120:-1[png_kecil]; \
+               [2:v]scale=250:-1[png_besar]; \
                [0:v][logo]overlay=W-w-25:25[bg_plus_logo]; \
-               [bg_plus_logo][png_kecil]overlay=25:25:shortest=1" \
+               [bg_plus_logo][png_besar]overlay=25:25:shortest=1" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
               -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
