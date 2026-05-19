@@ -67,7 +67,7 @@ jobs:
             echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
             # Urutan Filter: 
-            # 1. Olah video logoihya2026.mp4 dengan colorkey asli (0x0505C8) & scale 85
+            # 1. Olah video logoihya2026.mp4 dengan colorkey asli (0x009400) & scale 85
             # 2. Olah gambar tanggaloverlay.png diperbesar ke skala lebar 250
             # 3. Tempel logo di kanan atas (W-w-25:25)
             # 4. Tempel PNG di kiri atas (25:25) memberikan spasi ideal dari tepi
@@ -75,8 +75,8 @@ jobs:
               -stream_loop -1 -i logoihya2026.mp4 \
               -stream_loop -1 -i tanggaloverlay.png \
               -filter_complex \
-              "[1:v]crop=ih:ih,colorkey=0x0505C8:0.1:0.1,scale=85:-1[logo]; \
-               [2:v]scale=250:-1[png_besar]; \
+              "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=85:-1[logo]; \
+               [2:v]scale=450:-1[png_besar]; \
                [0:v][logo]overlay=W-w-25:25[bg_plus_logo]; \
                [bg_plus_logo][png_besar]overlay=25:25:shortest=1" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
