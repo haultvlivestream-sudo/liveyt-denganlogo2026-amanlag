@@ -76,7 +76,7 @@ jobs:
               -stream_loop -1 -i tanggaloverlay.png \
               -filter_complex \
               "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=85:-1[logo]; \
-               [2:v]scale=400:-1[png_besar]; \
+               [2:v]scale=350:-1[png_besar]; \
                [0:v][logo]overlay=W-w-25:25[bg_plus_logo]; \
                [bg_plus_logo][png_besar]overlay=25:25:shortest=1" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
