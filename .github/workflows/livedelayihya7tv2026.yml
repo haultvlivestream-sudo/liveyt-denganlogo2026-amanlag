@@ -49,13 +49,13 @@ jobs:
 
           echo "--- [$(date)] Menghubungkan Sumber & Memulai FFmpeg ---"
 
-          # LOGIKA UTAMA IHYA 7 TV (Metode Pipe - Sekali Jalan):
-          # - Menggunakan yt-dlp langsung di-oper ke ffmpeg lewat tanda (|)
-          # - Memakai format terbaik yang didukung mp4 agar lancar dilempar ke ffmpeg
+          # LOGIKA PIPE FIX VIDEO REKAMAN/SIARAN ULANG:
+          # Format diubah ke "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" agar video non-live / bekas live 
+          # bisa di-pipe dengan lancar tanpa memicu error data kosong di FFmpeg.
           yt-dlp --cookies cookies.txt \
                  --js-runtime node \
                  --force-ipv4 \
-                 -f "best[ext=mp4]/best" \
+                 -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" \
                  -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg -re -i - \
             -stream_loop -1 -i "$LOGO_FILE" \
