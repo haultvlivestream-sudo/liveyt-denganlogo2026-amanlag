@@ -1,4 +1,4 @@
-name: Downloader Video + Kunci Ukuran Logo 130px
+name: Downloader Video + Kunci Ukuran Logo 130px (Full Fix)
 
 on:
   workflow_dispatch:
@@ -38,6 +38,9 @@ jobs:
         run: |
           echo "$YT_COOKIES" > cookies.txt
           
+          # Hapus sisa file lama agar tidak bentrok atau terbaca cache
+          rm -f video_sumber_asli.mp4 hasil_*.mp4
+          
           # Memastikan file logo ada
           LOGO_FILE="logoihya2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
@@ -46,7 +49,7 @@ jobs:
             exit 1
           fi
           
-          echo "--- [Langkah 1: Mengunduh Video] ---"
+          echo "--- [Langkah 1: Mengunduh Video Mentah] ---"
           yt-dlp --cookies cookies.txt \
                  --js-runtime node \
                  --force-ipv4 \
@@ -64,18 +67,16 @@ jobs:
 
           echo "--- [Langkah 2: Memproses Potong & Kunci Logo 130px] ---"
           
-          # PERUBAHAN UKURAN:
-          # scale=130:-1 -> Lebar logo dikunci 130 piksel, tinggi menyesuaikan otomatis agar proporsional.
-          # overlay=W-w-15:15 -> Jarak dari tepi kanan atas kita buat agak mepet sedikit (15 piksel) supaya serasi dengan ukuran logo yang kecil.
-          
-          ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i video_sumber_asli.mp4 \
+          # -y dipasang untuk memaksa overwrite file baru
+          # scale=130:-1 mengunci lebar logo secara mutlak di 130px
+          ffmpeg -y -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i video_sumber_asli.mp4 \
           -stream_loop -1 -i "$LOGO_FILE" \
           -filter_complex \
           "[1:v]colorkey=0x009400:0.1:0.1,scale=130:-1[logo]; \
            [0:v][logo]overlay=W-w-15:15:shortest=1" \
           -c:v libx264 -preset fast -b:v 6000k -maxrate 8000k -bufsize 16000k \
           -pix_fmt yuv420p -c:a aac -b:a 128k \
-          hasil_logo_130px.mp4
+          hasil_final_130px.mp4
 
           echo "--- Seluruh Proses Selesai! ---"
 
@@ -83,5 +84,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: hasil-clipping-logo-130px
-          path: hasil_logo_130px.mp4
+          path: hasil_final_130px.mp4
           
