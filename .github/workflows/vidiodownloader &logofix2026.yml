@@ -1,20 +1,20 @@
-name: Downloader Video 1080p + Tempel Logo
+name: Downloader Video 1080p + Tempel Logo (Engine Script 2)
 
 on:
   workflow_dispatch:
     inputs:
       link_youtube:
-        description: 'Link Video Sumber'
+        description: 'Link YouTube (Video Sumber)'
         required: true
       mulai:
-        description: 'Mulai Potong (Jam:Menit:Detik)'
+        description: 'Mulai (Jam:Menit:Detik)'
         default: '00:00:10'
       selesai:
-        description: 'Selesai Potong (Jam:Menit:Detik)'
+        description: 'Selesai (Jam:Menit:Detik)'
         default: '00:00:40'
 
 jobs:
-  proses_download:
+  proses_editing:
     runs-on: ubuntu-latest
     steps:
       - name: 1. Checkout Repository
@@ -25,62 +25,58 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 3. Install Tools
+      - name: 3. Install Tools (Engine dari Relay Pro)
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl bc
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Proses Download dan Tempel Logo
+      - name: 4. Eksekusi Potong Video + Tempel Logo
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           echo "$YT_COOKIES" > cookies.txt
           
-          # Memastikan file logo ada di repository
+          # Memastikan file logo ada
           LOGO_FILE="logoihya2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
-            echo "ERROR: File $LOGO_FILE tidak ditemukan di repository!"
+            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
             exit 1
           fi
-
-          echo "--- [Mencari Video dengan Kualitas Maksimal 1080p] ---"
           
-          # Dikunci pada resolusi maksimal 1080p (jika video asli 4K, otomatis ambil yang 1080p)
+          echo "--- [Mencari Direct Link dengan Cookies - Meniru Script 2] ---"
+          # Meniru format filter presisi dari Script 2, tetapi ditingkatkan ke 1080p
           VIDEO_URL=$(yt-dlp --cookies cookies.txt \
                              --js-runtime node \
                              --force-ipv4 \
+                             --no-playlist \
+                             --extractor-args "youtube:player_client=mweb,web" \
                              -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
-                             -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+                             -g "${{ github.event.inputs.link_youtube }}")
 
           if [ -z "$VIDEO_URL" ]; then
-            echo "ERROR: Gagal mengambil URL. Cek Cookies atau Link!"
+            echo "ERROR: Gagal mendapatkan URL. Cek isi YT_COOKIES di Secrets GitHub Anda!"
             exit 1
           fi
 
-          echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi 1080p + Logo..."
-
-          # LOGIKA SCRIPT 1 YANG DISESUAIKAN UNTUK 1080p:
-          # 1. Mengikuti resolusi asli hasil filter 1080p di atas.
-          # 2. Logo (1:v) dibuat 12% dari lebar video utama (iw*0.12).
-          # 3. Jarak logo (overlay) dibuat 2% dari lebar layar agar tidak terlalu mepet.
-          # 4. Bitrate 6000k - 8000k (Sangat optimal dan super jernih untuk standar 1080p).
-
+          echo "--- [Memulai Pemotongan & Penempelan Logo HD] ---"
+          # Gabungan durasi Script 2 & Filter Logo Adaptif Super Jernih Script 1
           ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i "$VIDEO_URL" \
-            -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex \
-            "[1:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
-             [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
-            -c:v libx264 -preset fast -b:v 6000k -maxrate 8000k -bufsize 16000k \
-            -pix_fmt yuv420p -c:a aac -ar 44100 -b:a 128k \
-            hasil_1080p_logo.mp4
+          -stream_loop -1 -i "$LOGO_FILE" \
+          -filter_complex \
+          "[1:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
+           [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
+          -c:v libx264 -preset fast -b:v 6000k -maxrate 8000k -bufsize 16000k \
+          -pix_fmt yuv420p -c:a aac -b:a 128k \
+          hasil_1080p_logo.mp4
 
-          echo "--- Proses Pengolahan Selesai! ---"
+          echo "--- Proses Selesai! ---"
 
       - name: 5. Upload Hasil Video
         uses: actions/upload-artifact@v4
         with:
           name: video-hasil-1080p
           path: hasil_1080p_logo.mp4
+          
