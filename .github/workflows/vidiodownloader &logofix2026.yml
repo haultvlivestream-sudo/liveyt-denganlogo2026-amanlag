@@ -1,10 +1,10 @@
-name: Downloader Video SUPER HD + Tempel Logo (Anti-403 Fix)
+name: Downloader Video + Kunci Ukuran Logo 130px
 
 on:
   workflow_dispatch:
     inputs:
       link_youtube:
-        description: 'Link Video Sumber'
+        description: 'Link YouTube (Video Sumber)'
         required: true
       mulai:
         description: 'Mulai (Jam:Menit:Detik)'
@@ -46,41 +46,42 @@ jobs:
             exit 1
           fi
           
-          echo "--- [Langkah 1: Mengunduh Video Kualitas 1080p Secara Utuh] ---"
-          # yt-dlp mengunduh file fisik terlebih dahulu agar terhindar dari pemutusan koneksi di tengah jalan
+          echo "--- [Langkah 1: Mengunduh Video] ---"
           yt-dlp --cookies cookies.txt \
                  --js-runtime node \
                  --force-ipv4 \
                  --no-playlist \
                  --extractor-args "youtube:player_client=web,android" \
-                 -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+                 -f "bestvideo+bestaudio/best" \
                  --merge-output-format mp4 \
                  -o "video_sumber_asli.mp4" \
                  "${{ github.event.inputs.link_youtube }}"
 
-          # Validasi apakah file mentah berhasil terunduh
           if [ ! -f "video_sumber_asli.mp4" ]; then
             echo "ERROR: Gagal mengunduh video dari YouTube. Periksa kembali YT_COOKIES Anda!"
             exit 1
           fi
 
-          echo "--- [Langkah 2: Memproses Potong & Tempel Logo Menggunakan FFmpeg Lokal] ---"
-          # FFmpeg membaca file lokal 'video_sumber_asli.mp4', bukan URL internet lagi.
-          # Menjaga kualitas HD murni menggunakan kombinasi preset fast dan bitrate tinggi.
+          echo "--- [Langkah 2: Memproses Potong & Kunci Logo 130px] ---"
+          
+          # PERUBAHAN UKURAN:
+          # scale=130:-1 -> Lebar logo dikunci 130 piksel, tinggi menyesuaikan otomatis agar proporsional.
+          # overlay=W-w-15:15 -> Jarak dari tepi kanan atas kita buat agak mepet sedikit (15 piksel) supaya serasi dengan ukuran logo yang kecil.
+          
           ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i video_sumber_asli.mp4 \
           -stream_loop -1 -i "$LOGO_FILE" \
           -filter_complex \
-          "[1:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
-           [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
-          -c:v libx264 -preset fast -b:v 8000k -maxrate 10000k -bufsize 20000k \
+          "[1:v]colorkey=0x009400:0.1:0.1,scale=130:-1[logo]; \
+           [0:v][logo]overlay=W-w-15:15:shortest=1" \
+          -c:v libx264 -preset fast -b:v 6000k -maxrate 8000k -bufsize 16000k \
           -pix_fmt yuv420p -c:a aac -b:a 128k \
-          hasil_super_hd_logo.mp4
+          hasil_logo_130px.mp4
 
           echo "--- Seluruh Proses Selesai! ---"
 
       - name: 5. Upload Hasil Video ke Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: hasil-clipping-hd
-          path: hasil_super_hd_logo.mp4
+          name: hasil-clipping-logo-130px
+          path: hasil_logo_130px.mp4
           
