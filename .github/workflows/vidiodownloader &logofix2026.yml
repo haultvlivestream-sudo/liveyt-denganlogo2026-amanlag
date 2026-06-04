@@ -1,4 +1,4 @@
-name: Downloader Video 1080p + Tempel Logo (Engine Script 2)
+name: Downloader Video HD + Tempel Logo (Fix Skala & Resolusi)
 
 on:
   workflow_dispatch:
@@ -46,14 +46,15 @@ jobs:
             exit 1
           fi
           
-          echo "--- [Mencari Direct Link dengan Cookies - Meniru Script 2] ---"
-          # Meniru format filter presisi dari Script 2, tetapi ditingkatkan ke 1080p
+          echo "--- [Mencari Direct Link Kualitas Tertinggi Asli Script 1] ---"
+          # KEMBALI MENGGUNAKAN STANDAR SCRIPT 1 (bestvideo+bestaudio/best)
+          # Namun tetap membawa parameter anti-block dari Script 2
           VIDEO_URL=$(yt-dlp --cookies cookies.txt \
                              --js-runtime node \
                              --force-ipv4 \
                              --no-playlist \
                              --extractor-args "youtube:player_client=mweb,web" \
-                             -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+                             -f "bestvideo+bestaudio/best" \
                              -g "${{ github.event.inputs.link_youtube }}")
 
           if [ -z "$VIDEO_URL" ]; then
@@ -61,22 +62,22 @@ jobs:
             exit 1
           fi
 
-          echo "--- [Memulai Pemotongan & Penempelan Logo HD] ---"
-          # Gabungan durasi Script 2 & Filter Logo Adaptif Super Jernih Script 1
+          echo "--- [Memulai Pemotongan & Penempelan Logo Sesuai Standar Script 1] ---"
+          # Menggunakan setelan bitrate tinggi (8000k-10000k) dan filter logo asli Script 1
           ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i "$VIDEO_URL" \
           -stream_loop -1 -i "$LOGO_FILE" \
           -filter_complex \
           "[1:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
            [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
-          -c:v libx264 -preset fast -b:v 6000k -maxrate 8000k -bufsize 16000k \
+          -c:v libx264 -preset fast -b:v 8000k -maxrate 10000k -bufsize 20000k \
           -pix_fmt yuv420p -c:a aac -b:a 128k \
-          hasil_1080p_logo.mp4
+          hasil_high_res_logo.mp4
 
           echo "--- Proses Selesai! ---"
 
       - name: 5. Upload Hasil Video
         uses: actions/upload-artifact@v4
         with:
-          name: video-hasil-1080p
-          path: hasil_1080p_logo.mp4
+          name: video-hasil-hd
+          path: hasil_high_res_logo.mp4
           
