@@ -1,4 +1,4 @@
-name: Live Bantu AlShodiq tv (Thumbnail + Audio)
+Name: Live Bantu AlShodiq tv (Thumbnail + Audio)
 
 on:
   workflow_dispatch:
@@ -70,17 +70,16 @@ jobs:
 
             echo "AUDIO DITEMUKAN! Memulai FFmpeg Gabungan (Thumbnail + Audio + Logo)..."
 
-            # PENJELASAN LOGIKA FFMPEG BARU:
-            # -loop 1 -i ... -> Membaca gambar thumbnail secara berulang (menjadi video diam)
-            # -i $AUDIO_URL  -> Mengambil source audio live dari YT
-            # -i $LOGO_FILE  -> Mengambil file logo overlay
+            # PERUBAHAN DI SINI:
+            # scale=iw*0.125 mengubah ukuran logo menjadi lebih kecil (12.5% dari lebar video utama)
+            # Jarak margin kanan & atas disesuaikan menjadi 2% (W*0.02) agar lebih merapat ke pojok karena logonya mengecil
             
             ffmpeg -re -loop 1 -i "${{ github.event.inputs.link_thumbnail }}" \
               -i "$AUDIO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
-              "[2:v]colorkey=0x007200:0.1:0.1,scale=iw*0.25:-1[logo]; \
-               [0:v][logo]overlay=W-w-(W*0.03):(W*0.03)[v]" \
+              "[2:v]colorkey=0x007200:0.1:0.1,scale=iw*0.125:-1[logo]; \
+               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
               -map "[v]" \
               -map 1:a \
               -c:v libx264 -preset ultrafast -b:v 4000k -maxrate 5000k -bufsize 10000k \
