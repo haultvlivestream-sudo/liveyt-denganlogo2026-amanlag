@@ -1,4 +1,4 @@
-Name: Live Bantu AlShodiq tv (Thumbnail + Audio)
+name: Live Bantu AlShodiq tv (Thumbnail + Audio)
 
 on:
   workflow_dispatch:
