@@ -1,13 +1,13 @@
-name: Live CCTV 16:9 M3U8 + Audio YouTube + Logo Adaptif (Bypass Geo-Block)
+name: Live Relay M3U8 + Audio YouTube Custom + Logo Adaptif
 
 on:
   workflow_dispatch:
     inputs:
       m3u8_url:
-        description: '1. Link .m3u8 (Video CCTV)'
+        description: '1. Link .m3u8 (Video)'
         required: true
       audio_url:
-        description: '2. Link YouTube (Audio Background)'
+        description: '2. Link YouTube (Audio)'
         required: true
       kunci_rtmp:
         description: '3. Stream Key YouTube'
@@ -28,11 +28,12 @@ jobs:
       - name: 3. Install Tools (FFmpeg & yt-dlp Nightly)
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          # Menggunakan versi nightly agar lebih kuat tembus proteksi YT
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Jalankan Relay Streaming CCTV
+      - name: 4. Jalankan Relay Streaming
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -42,30 +43,15 @@ jobs:
           # Memastikan file logo ada di repository
           LOGO_FILE="logoihya2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
-            echo "ERROR: File $LOGO_FILE tidak ditemukan di repository!"
+            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
             exit 1
           fi
-
+          
           while true; do
-            echo "--- [$(date)] Mengambil Proxy Indonesia Aktif ---"
-            # Mengambil list proxy HTTP gratisan khusus negara Indonesia (ID)
-            PROXY_LIST=$(curl -s "https://proxylist.geonode.com/api/proxy-list?country=ID&protocols=http&limit=10&page=1&sort_by=lastChecked&sort_type=desc")
-            
-            # Ekstraksi IP dan Port pertama yang ditemukan
-            PROXY_IP=$(echo "$PROXY_LIST" | jq -r '.data[0].ip // empty')
-            PROXY_PORT=$(echo "$PROXY_LIST" | jq -r '.data[0].port // empty')
-
-            if [ ! -z "$PROXY_IP" ] && [ ! -z "$PROXY_PORT" ]; then
-              PROXY_URL="http://$PROXY_IP:$PROXY_PORT"
-              echo "Proxy Indonesia Ditemukan: $PROXY_URL"
-            else
-              echo "Gagal mendapatkan proxy otomatis. Berjalan tanpa proxy..."
-              PROXY_URL=""
-            fi
-
             echo "--- [$(date)] Mengambil Direct Link Audio YouTube ---"
-            # yt-dlp dijalankan TANPA proxy agar mengambil audio dari YouTube tetap kencang pake server GitHub
+            
+            # Menggunakan settingan extractor yang sama dengan script relay pro
             AUDIO_STREAM=$(yt-dlp --cookies cookies.txt \
                                --js-runtime node \
                                --force-ipv4 \
@@ -75,39 +61,41 @@ jobs:
                                -g "${{ github.event.inputs.audio_url }}" 2>/dev/null)
 
             if [ -z "$AUDIO_STREAM" ]; then
-              echo "Gagal ambil URL Audio dengan extractor-args. Mencoba fallback..."
+              echo "Gagal ambil URL Audio. Mencoba tanpa extractor-args..."
               AUDIO_STREAM=$(yt-dlp --cookies cookies.txt --js-runtime node -f "bestaudio" -g "${{ github.event.inputs.audio_url }}" 2>/dev/null)
             fi
 
             if [ -z "$AUDIO_STREAM" ]; then
-              echo "CRITICAL ERROR: Gagal mengambil audio YouTube. Cek Cookies!"
+              echo "CRITICAL ERROR: Gagal ambil audio. Cek Cookies!"
               sleep 10
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai Live CCTV (16:9) & Audio..."
+            echo "SUMBER DITEMUKAN! Memulai Relay..."
+            echo "Video: ${{ github.event.inputs.m3u8_url }}"
+            echo "Audio: YouTube Stream"
+            echo "Logo : $LOGO_FILE"
 
-            # Jika proxy ditemukan, pasang argumen khusus sebelum input m3u8 (-http_proxy)
-            PROXY_ARG=""
-            if [ ! -z "$PROXY_URL" ]; then
-              PROXY_ARG="-http_proxy $PROXY_URL"
-            fi
+            # Penambahan Logika Logo ke Skrip 1 Asli:
+            # - Input 0 (-i m3u8): Sumber Video CCTV (tetap di posisi pertama agar koneksi aman)
+            # - Input 1 (-i AUDIO_STREAM): Sumber Audio YouTube
+            # - Input 2 (-i LOGO_FILE): File logo dengan loop terus-menerus
+            # - filter_complex: Memproses logo (hilangkan warna hijau & skala 12%), lalu tempel ke video utama
+            # - map "[v_out]" & map 1:a:0: Memastikan video berlogo dan audio YT digabung dengan benar
 
-            # Eksekusi FFmpeg: Hanya input CCTV (0) yang dipaksa lewat Proxy Indonesia
-            ffmpeg $PROXY_ARG -re -i "${{ github.event.inputs.m3u8_url }}" \
+            ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
-              "[0:v]scale=w='min(1920,iw*1080/ih)':h='min(1080,ih*1920/iw)',pad=1920:1080:(1920-iw)/2:(1080-ih)/2:black[cctv_169]; \
-               [2:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
-               [cctv_169][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
-              -c:v libx264 -preset veryfast -b:v 5000k -maxrate 6000k -bufsize 12000k \
+              "[2:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
+               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
+              -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -map "[v_out]" -map 1:a:0 \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus atau m3u8/proxy reset. Mengulang dalam 5 detik..."
+            echo "Stream terputus atau selesai. Mengulang dalam 5 detik..."
             sleep 5
           done
           
