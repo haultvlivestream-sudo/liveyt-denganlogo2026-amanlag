@@ -1,4 +1,4 @@
-name: Live CCTV 16:9 M3U8 + Audio YouTube + Logo Adaptif
+name: Live CCTV 16:9 M3U8 + Audio YouTube + Logo Adaptif (Bypass Geo-Block)
 
 on:
   workflow_dispatch:
@@ -48,8 +48,24 @@ jobs:
           fi
 
           while true; do
-            echo "--- [$(date)] Mengambil Direct Link Audio YouTube ---"
+            echo "--- [$(date)] Mengambil Proxy Indonesia Aktif ---"
+            # Mengambil list proxy HTTP gratisan khusus negara Indonesia (ID)
+            PROXY_LIST=$(curl -s "https://proxylist.geonode.com/api/proxy-list?country=ID&protocols=http&limit=10&page=1&sort_by=lastChecked&sort_type=desc")
             
+            # Ekstraksi IP dan Port pertama yang ditemukan
+            PROXY_IP=$(echo "$PROXY_LIST" | jq -r '.data[0].ip // empty')
+            PROXY_PORT=$(echo "$PROXY_LIST" | jq -r '.data[0].port // empty')
+
+            if [ ! -z "$PROXY_IP" ] && [ ! -z "$PROXY_PORT" ]; then
+              PROXY_URL="http://$PROXY_IP:$PROXY_PORT"
+              echo "Proxy Indonesia Ditemukan: $PROXY_URL"
+            else
+              echo "Gagal mendapatkan proxy otomatis. Berjalan tanpa proxy..."
+              PROXY_URL=""
+            fi
+
+            echo "--- [$(date)] Mengambil Direct Link Audio YouTube ---"
+            # yt-dlp dijalankan TANPA proxy agar mengambil audio dari YouTube tetap kencang pake server GitHub
             AUDIO_STREAM=$(yt-dlp --cookies cookies.txt \
                                --js-runtime node \
                                --force-ipv4 \
@@ -71,8 +87,14 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Memulai Live CCTV (16:9) & Audio..."
 
-            # FIX: Menggunakan (1920-iw)/2 dan (1080-ih)/2 agar kalkulasi padding terbaca sempurna oleh FFmpeg
-            ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
+            # Jika proxy ditemukan, pasang argumen khusus sebelum input m3u8 (-http_proxy)
+            PROXY_ARG=""
+            if [ ! -z "$PROXY_URL" ]; then
+              PROXY_ARG="-http_proxy $PROXY_URL"
+            fi
+
+            # Eksekusi FFmpeg: Hanya input CCTV (0) yang dipaksa lewat Proxy Indonesia
+            ffmpeg $PROXY_ARG -re -i "${{ github.event.inputs.m3u8_url }}" \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
@@ -85,7 +107,7 @@ jobs:
               -map "[v_out]" -map 1:a:0 \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus atau m3u8 reset. Mengulang dalam 5 detik..."
+            echo "Stream terputus atau m3u8/proxy reset. Mengulang dalam 5 detik..."
             sleep 5
           done
           
