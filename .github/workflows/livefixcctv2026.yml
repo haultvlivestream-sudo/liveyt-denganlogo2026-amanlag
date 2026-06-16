@@ -71,17 +71,12 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Memulai Live CCTV (16:9) & Audio..."
 
-            # PENJELASAN LOGIKA FILTER BARU (16:9 + LOGO):
-            # 1. [0:v]scale=... : Mengubah video CCTV menjadi maksimal 1920x1080 dengan tetap menjaga aspek rasio aslinya (agar tidak gepeng).
-            # 2. pad=1920:1080:... : Jika video CCTV aslinya bukan 16:9, sisa layarnya otomatis diisi warna hitam (black bar) tepat di tengah layar hingga berukuran pas 1920x1080. Hasilnya dinamai [cctv_169].
-            # 3. [2:v]colorkey... : Memproses logo ihya (hilangkan warna hijau, scale 12% berdasarkan lebar video utama yang sekarang sudah fix 1920px).
-            # 4. [cctv_169][logo]overlay... : Menempelkan logo di atas video CCTV yang sudah berukuran 16:9 standar.
-
+            # FIX: Menggunakan (1920-iw)/2 dan (1080-ih)/2 agar kalkulasi padding terbaca sempurna oleh FFmpeg
             ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
-              "[0:v]scale=w='min(1920,iw*1080/ih)':h='min(1080,ih*1920/iw)',pad=1920:1080:(1920-w)/2:(1080-h)/2:black[cctv_169]; \
+              "[0:v]scale=w='min(1920,iw*1080/ih)':h='min(1080,ih*1920/iw)',pad=1920:1080:(1920-iw)/2:(1080-ih)/2:black[cctv_169]; \
                [2:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
                [cctv_169][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
               -c:v libx264 -preset veryfast -b:v 5000k -maxrate 6000k -bufsize 12000k \
