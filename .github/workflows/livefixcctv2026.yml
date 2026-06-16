@@ -1,4 +1,4 @@
-name: Live Relay M3U8 + Audio YouTube + Logo (Fix 16:9 & Logo Proporsional)
+name: Live Relay M3U8 + Audio YouTube + Logo (Force Stretch 16:9 Full)
 
 on:
   workflow_dispatch:
@@ -68,25 +68,23 @@ jobs:
             fi
 
             echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
-            # Jalankan pengambilan data CCTV tanpa filter di background
             ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" -c copy -f mpegts udp://127.0.0.1:8080?pkt_size=1316 &
             
             sleep 3
 
-            echo "Memulai Pemrosesan Logo & Force 16:9 Widescreen..."
+            echo "Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
             
-            # PERUBAHAN LOGIKA DI FILTER COMPLEX:
-            # 1. [0:v]scale... pad... -> Mengubah paksa video buffer CCTV dari kotak menjadi 1920x1080 (16:9) proporsional dinamai [cctv_169].
-            # 2. [2:v]colorkey... scale=iw*0.12 -> Mengecilkan logo menjadi 12% dari lebar layar utama (yang sudah fix 1920px).
-            # 3. [cctv_169][logo]overlay... -> Menempelkan logo di atas video yang sudah berformat widescreen 16:9.
+            # PERUBAHAN UTAMA:
+            # [0:v]scale=1920:1080 -> Menarik paksa video CCTV (skala melar) menjadi Full HD 16:9 penuh layar.
+            # Ukuran logo tetap dikunci 12% dari lebar layar utama (1920px), jadi ukurannya ideal dan tidak besar lagi.
             
             ffmpeg -re -i "udp://127.0.0.1:8080" \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
-              "[0:v]scale=w='min(1920,iw*1080/ih)':h='min(1080,ih*1920/iw)',pad=1920:1080:(1920-iw)/2:(1080-ih)/2:black[cctv_169]; \
+              "[0:v]scale=1920:1080[cctv_widescreen]; \
                [2:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
-               [cctv_169][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
+               [cctv_widescreen][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
@@ -97,3 +95,4 @@ jobs:
             killall ffmpeg 2>/dev/null
             sleep 5
           done
+          
