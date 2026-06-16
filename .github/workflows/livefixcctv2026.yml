@@ -28,9 +28,10 @@ jobs:
       - name: 3. Install Tools (FFmpeg & yt-dlp Nightly)
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          # Mengunduh langsung versi nightly terbaru
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          yt-dlp -U
+          # FIX: Menghapus 'yt-dlp -U' agar tidak terkena cek pembatasan 403 Rate Limit GitHub
 
       - name: 4. Jalankan Relay Streaming
         env:
@@ -70,8 +71,7 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
             
-            # TRIK AMAN: CCTV dialirkan ke lokal port server GitHub dulu (127.0.0.1:8080) 
-            # Ini meniru Skrip 1 asli yang terbukti sukses konek tanpa beban filter.
+            # CCTV dialirkan ke lokal port server GitHub dulu (127.0.0.1:8080)
             ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" -c copy -f mpegts udp://127.0.0.1:8080?pkt_size=1316 &
             
             # Beri jeda 3 detik agar buffer video lokal terisi
@@ -79,8 +79,7 @@ jobs:
 
             echo "Memulai Pemrosesan Logo dari Buffer Lokal ke YouTube..."
             
-            # FFmpeg utama membaca video dari udp:// lokal (bukan nembak langsung ke web CCTV lagi)
-            # Sehingga server CCTV mengira ini adalah koneksi biasa tanpa filter.
+            # FFmpeg utama membaca video dari udp:// lokal agar server CCTV tidak memblokir overlay logo
             ffmpeg -re -i "udp://127.0.0.1:8080" \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
@@ -94,7 +93,7 @@ jobs:
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
             echo "Stream terputus atau selesai. Mengulang dalam 5 detik..."
-            # Bersihkan sisa proses background jika ada
             killall ffmpeg 2>/dev/null
             sleep 5
           done
+          
