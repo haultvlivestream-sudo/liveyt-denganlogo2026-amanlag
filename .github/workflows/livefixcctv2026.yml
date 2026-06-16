@@ -1,4 +1,4 @@
-name: Live Relay M3U8 + Audio YouTube Custom + Logo Adaptif
+name: Live Relay M3U8 + Audio YouTube + Logo (Sistem Buffer Aman)
 
 on:
   workflow_dispatch:
@@ -28,7 +28,6 @@ jobs:
       - name: 3. Install Tools (FFmpeg & yt-dlp Nightly)
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
-          # Menggunakan versi nightly agar lebih kuat tembus proteksi YT
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
@@ -40,7 +39,6 @@ jobs:
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          # Memastikan file logo ada di repository
           LOGO_FILE="logoihya2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
@@ -51,7 +49,6 @@ jobs:
           while true; do
             echo "--- [$(date)] Mengambil Direct Link Audio YouTube ---"
             
-            # Menggunakan settingan extractor yang sama dengan script relay pro
             AUDIO_STREAM=$(yt-dlp --cookies cookies.txt \
                                --js-runtime node \
                                --force-ipv4 \
@@ -71,19 +68,20 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai Relay..."
-            echo "Video: ${{ github.event.inputs.m3u8_url }}"
-            echo "Audio: YouTube Stream"
-            echo "Logo : $LOGO_FILE"
+            echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
+            
+            # TRIK AMAN: CCTV dialirkan ke lokal port server GitHub dulu (127.0.0.1:8080) 
+            # Ini meniru Skrip 1 asli yang terbukti sukses konek tanpa beban filter.
+            ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" -c copy -f mpegts udp://127.0.0.1:8080?pkt_size=1316 &
+            
+            # Beri jeda 3 detik agar buffer video lokal terisi
+            sleep 3
 
-            # Penambahan Logika Logo ke Skrip 1 Asli:
-            # - Input 0 (-i m3u8): Sumber Video CCTV (tetap di posisi pertama agar koneksi aman)
-            # - Input 1 (-i AUDIO_STREAM): Sumber Audio YouTube
-            # - Input 2 (-i LOGO_FILE): File logo dengan loop terus-menerus
-            # - filter_complex: Memproses logo (hilangkan warna hijau & skala 12%), lalu tempel ke video utama
-            # - map "[v_out]" & map 1:a:0: Memastikan video berlogo dan audio YT digabung dengan benar
-
-            ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
+            echo "Memulai Pemrosesan Logo dari Buffer Lokal ke YouTube..."
+            
+            # FFmpeg utama membaca video dari udp:// lokal (bukan nembak langsung ke web CCTV lagi)
+            # Sehingga server CCTV mengira ini adalah koneksi biasa tanpa filter.
+            ffmpeg -re -i "udp://127.0.0.1:8080" \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
@@ -96,6 +94,7 @@ jobs:
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
             echo "Stream terputus atau selesai. Mengulang dalam 5 detik..."
+            # Bersihkan sisa proses background jika ada
+            killall ffmpeg 2>/dev/null
             sleep 5
           done
-          
