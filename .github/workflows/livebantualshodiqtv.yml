@@ -22,7 +22,6 @@ jobs:
         with:
           node-version: '20'
 
-      # FIX PATH: Memastikan Node.js terbaca global oleh yt-dlp di GitHub Actions
       - name: Fix Node.js Path
         run: echo "$(dirname $(which node))" >> $GITHUB_PATH
 
@@ -40,7 +39,6 @@ jobs:
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          # Memastikan file logo utama kamu ada
           LOGO_FILE="logoalshodiqtv.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
@@ -51,7 +49,6 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Terbaik dari Sumber ---"
             
-            # Menggunakan logika cek sumber terpisah sebelum masuk ke FFmpeg
             VIDEO_URL=$(yt-dlp --cookies cookies.txt \
                                --js-runtime node \
                                --force-ipv4 \
@@ -66,13 +63,11 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Memulai FFmpeg Relay..."
 
-            # Menjalankan FFmpeg dengan input langsung dari $VIDEO_URL
-            # Ukuran logo tetap 25% (iw*0.25)
-            # Colorkey diubah ke 0x007200 (Hijau)
+            # Ukuran logo diset ke 15% (iw*0.15)
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
-              "[1:v]colorkey=0x007200:0.1:0.1,scale=iw*0.25:-1[logo]; \
+              "[1:v]colorkey=0x007200:0.1:0.1,scale=iw*0.15:-1[logo]; \
                [0:v][logo]overlay=W-w-(W*0.03):(W*0.03):shortest=1" \
               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
@@ -82,3 +77,4 @@ jobs:
             echo "Stream terputus. Mengulang dalam 5 detik..."
             sleep 5
           done
+          
