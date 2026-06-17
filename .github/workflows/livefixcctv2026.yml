@@ -46,10 +46,6 @@ jobs:
           fi
           
           while true; do
-            # Bersihkan sisa proses FFmpeg sebelum memulai ulang loop
-            killall ffmpeg 2>/dev/null
-            sleep 1
-
             echo "--- [$(date)] Mengambil Direct Link Audio YouTube ---"
             
             AUDIO_STREAM=$(yt-dlp --cookies cookies.txt \
@@ -66,28 +62,21 @@ jobs:
             fi
 
             if [ -z "$AUDIO_STREAM" ]; then
-              echo "CRITICAL ERROR: Gagal ambil audio. Mengulang dalam 5 detik..."
-              sleep 5
+              echo "CRITICAL ERROR: Gagal ambil audio. Cek Cookies! Mencoba lagi dalam 10 detik..."
+              sleep 10
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
+            echo "SUMBER DITEMUKAN! Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
             
-            # SETTING 1 DETIK: timeout diubah menjadi 1000000 (1 detik) untuk input M3U8
-            ffmpeg -timeout 1000000 -re -i "${{ github.event.inputs.m3u8_url }}" -c copy -f mpegts udp://127.0.0.1:8080?pkt_size=1316 &
+            # PERBAIKAN TOTAL TANPA BUFFER UDP:
+            # Menggunakan parameter reconnect otomatis bawaan FFmpeg untuk menangani link M3U8 atau Audio yang putus di jalan.
+            # Jika putus total, FFmpeg akan exit (code non-zero) dan memicu loop 'while' untuk mengambil link audio baru.
             
-            # Tunggu sebentar untuk pengisian buffer awal
-            sleep 2
-
-            if ! pgrep -x "ffmpeg" > /dev/null; then
-              echo "ERROR: Link M3U8 Video mati atau tidak merespons dalam 1 detik. Ulangi..."
-              continue
-            fi
-
-            echo "Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
-            
-            # SETTING 1 DETIK: rw_timeout dan udp timeout diubah ke 1000000 (1 detik)
-            ffmpeg -rw_timeout 1000000 -re -i "udp://127.0.0.1:8080?timeout=1000000" \
+            ffmpeg \
+              -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+              -re -i "${{ github.event.inputs.m3u8_url }}" \
+              -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
@@ -100,8 +89,6 @@ jobs:
               -map "[v_out]" -map 1:a:0 \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus! Membersihkan proses dan mengulang dalam 2 detik..."
-            killall ffmpeg 2>/dev/null
-            sleep 2
+            echo "Stream terputus atau selesai. Mengulang mengambil resource baru dalam 5 detik..."
+            sleep 5
           done
-          
