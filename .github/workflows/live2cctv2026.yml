@@ -1,10 +1,10 @@
-name: Live Relay Dual M3U8 + Audio YouTube + Logo (Seamless Switch)
+name: Live Relay M3U8 + Audio YouTube + Logo (Force Stretch 16:9 Full)
 
 on:
   workflow_dispatch:
     inputs:
       m3u8_url_1:
-        description: '1. Link .m3u8 Utama (10 Menit)'
+        description: '1. Link .m3u8 Pertama (10 Menit)'
         required: true
       m3u8_url_2:
         description: '2. Link .m3u8 Kedua (5 Menit)'
@@ -70,20 +70,21 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video Paralel..."
-            ffmpeg -re -i "${{ github.event.inputs.m3u8_url_1 }}" -c copy -f mpegts udp://127.0.0.1:8081?pkt_size=1316 &
-            ffmpeg -re -i "${{ github.event.inputs.m3u8_url_2 }}" -c copy -f mpegts udp://127.0.0.1:8082?pkt_size=1316 &
+            echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
+            # Menjalankan dual buffer m3u8 secara paralel di background agar proses transisi antar link mulus
+            ffmpeg -timeout 5000000 -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${{ github.event.inputs.m3u8_url_1 }}" -c copy -f mpegts udp://127.0.0.1:8081?pkt_size=1316 &
+            ffmpeg -timeout 5000000 -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${{ github.event.inputs.m3u8_url_2 }}" -c copy -f mpegts udp://127.0.0.1:8082?pkt_size=1316 &
             
             sleep 3
 
-            echo "Memulai Pemrosesan Transisi Seamless (7 Detik Fade Tanpa Bug Parser)..."
+            echo "Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
             
-            # PENJELASAN LOGIKA BARU (ANTI-ERROR):
-            # 1. CCTV 1 dipaksa ke 1920x1080 [cctv1].
-            # 2. CCTV 2 dipaksa ke 1920x1080, lalu diberi efek fade-in selama 7 detik (st=593 d=7) dan fade-out selama 7 detik (st=893 d=7) [cctv2_fade].
-            # 3. Keduanya ditumpuk memakai overlay biasa yang hanya aktif dari detik ke-593 sampai ke-900 via perintah 'enable'.
-            # 4. Sifat siklus (loop 15 menit) ditangani langsung oleh setting -loop_output atau restreaming engine. Namun karena ini live stream panjang, kita pakai real-time filter yang presisi.
-
+            # PERUBAHAN UTAMA:
+            # - Menggunakan dual input udp port (8081 untuk link 1 dan 8082 untuk link 2).
+            # - Menggunakan fungsi fade bawaan untuk transisi pudar masuk (st=593 d=7) dan pudar keluar (st=893 d=7) pada link kedua.
+            # - Filter overlay dikontrol menggunakan parameter 'enable' berdasarkan siklus 15 menit (900 detik).
+            # - Index audio bergeser ke -map 2:a:0 mengikuti urutan input stream.
+            
             ffmpeg \
               -re -i "udp://127.0.0.1:8081" \
               -re -i "udp://127.0.0.1:8082" \
