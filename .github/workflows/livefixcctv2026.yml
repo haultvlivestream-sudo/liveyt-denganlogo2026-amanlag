@@ -1,4 +1,4 @@
-name: Live Relay M3U8 + Audio YouTube + Logo (Force Stretch 16:9 Full)
+name: Live CCTV m3u8 Fix 2026
 
 on:
   workflow_dispatch:
@@ -62,21 +62,23 @@ jobs:
             fi
 
             if [ -z "$AUDIO_STREAM" ]; then
-              echo "CRITICAL ERROR: Gagal ambil audio. Cek Cookies! Mencoba lagi dalam 10 detik..."
+              echo "CRITICAL ERROR: Gagal ambil audio. Cek Cookies!"
               sleep 10
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
+            echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
+            ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" -c copy -f mpegts udp://127.0.0.1:8080?pkt_size=1316 &
             
-            # PERBAIKAN TOTAL TANPA BUFFER UDP:
-            # Menggunakan parameter reconnect otomatis bawaan FFmpeg untuk menangani link M3U8 atau Audio yang putus di jalan.
-            # Jika putus total, FFmpeg akan exit (code non-zero) dan memicu loop 'while' untuk mengambil link audio baru.
+            sleep 3
+
+            echo "Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
             
-            ffmpeg \
-              -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
-              -re -i "${{ github.event.inputs.m3u8_url }}" \
-              -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+            # PERUBAHAN UTAMA:
+            # [0:v]scale=1920:1080 -> Menarik paksa video CCTV (skala melar) menjadi Full HD 16:9 penuh layar.
+            # Ukuran logo tetap dikunci 12% dari lebar layar utama (1920px), jadi ukurannya ideal dan tidak besar lagi.
+            
+            ffmpeg -re -i "udp://127.0.0.1:8080" \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
@@ -89,6 +91,9 @@ jobs:
               -map "[v_out]" -map 1:a:0 \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus atau selesai. Mengulang mengambil resource baru dalam 5 detik..."
+            echo "Stream terputus atau selesai. Mengulang dalam 5 detik..."
+            killall ffmpeg 2>/dev/null
             sleep 5
           done
+          
+
