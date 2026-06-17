@@ -1,4 +1,4 @@
-name: Live Relay M3U8 + Audio YouTube + Logo (Force Stretch 16:9 Full)
+name: Live 2 CCTV
 
 on:
   workflow_dispatch:
@@ -70,24 +70,11 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
-            # Menjalankan dual buffer m3u8 secara paralel di background agar proses transisi antar link mulus
-            ffmpeg -timeout 5000000 -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${{ github.event.inputs.m3u8_url_1 }}" -c copy -f mpegts udp://127.0.0.1:8081?pkt_size=1316 &
-            ffmpeg -timeout 5000000 -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${{ github.event.inputs.m3u8_url_2 }}" -c copy -f mpegts udp://127.0.0.1:8082?pkt_size=1316 &
-            
-            sleep 3
-
-            echo "Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
-            
-            # PERUBAHAN UTAMA:
-            # - Menggunakan dual input udp port (8081 untuk link 1 dan 8082 untuk link 2).
-            # - Menggunakan fungsi fade bawaan untuk transisi pudar masuk (st=593 d=7) dan pudar keluar (st=893 d=7) pada link kedua.
-            # - Filter overlay dikontrol menggunakan parameter 'enable' berdasarkan siklus 15 menit (900 detik).
-            # - Index audio bergeser ke -map 2:a:0 mengikuti urutan input stream.
+            echo "SUMBER DITEMUKAN! Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
             
             ffmpeg \
-              -re -i "udp://127.0.0.1:8081" \
-              -re -i "udp://127.0.0.1:8082" \
+              -headers "User-Agent: Mozilla/5.0" -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${{ github.event.inputs.m3u8_url_1 }}" \
+              -headers "User-Agent: Mozilla/5.0" -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${{ github.event.inputs.m3u8_url_2 }}" \
               -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
