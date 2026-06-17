@@ -1,4 +1,4 @@
-name: Live 2 CCTV Relay Dual M3U8 + Audio YouTube + Logo (Seamless Switch)
+name: Live Relay Dual M3U8 + Audio YouTube + Logo (Seamless Switch)
 
 on:
   workflow_dispatch:
@@ -79,11 +79,9 @@ jobs:
 
             echo "Memulai Pemrosesan Transisi Seamless (7 Detik Fade) & Tarik Paksa 16:9..."
             
-            # URUTAN INPUT FFMPEG:
-            # -i "udp://127.0.0.1:8081" -> Index [0] (CCTV 1)
-            # -i "udp://127.0.0.1:8082" -> Index [1] (CCTV 2)
-            # -i "$AUDIO_STREAM"        -> Index [2] (Audio YouTube)
-            # -i "$LOGO_FILE"           -> Index [3] (Logo)
+            # PERBAIKAN UTAMA:
+            # - geq=lum='p(X,Y)' ditambahkan agar warna asli video tetap dipertahankan.
+            # - Nilai alpha diubah ke rentang skala 0 sampai 1 (bukan 0 - 255) agar sesuai dengan standar filter geq terbaru.
 
             ffmpeg \
               -re -i "udp://127.0.0.1:8081" \
@@ -92,7 +90,7 @@ jobs:
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
               "[0:v]scale=1920:1080[cctv1]; \
-               [1:v]scale=1920:1080,format=pix_fmts=yuva420p,geq=a='if(lt(mod(t,900),593),0,if(lt(mod(t,900),600),(mod(t,900)-593)/7,if(lt(mod(t,900),893),255,if(lt(mod(t,900),900),(900-mod(t,900))/7,0))))'[cctv2_fade]; \
+               [1:v]scale=1920:1080,format=pix_fmts=yuva420p,geq=lum='p(X,Y)':a='if(lt(mod(t,900),593),0,if(lt(mod(t,900),600),(mod(t,900)-593)/7,if(lt(mod(t,900),893),1,if(lt(mod(t,900),900),(900-mod(t,900))/7,0))))'[cctv2_fade]; \
                [cctv1][cctv2_fade]overlay=0:0[video_mix]; \
                [3:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
                [video_mix][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
@@ -106,3 +104,4 @@ jobs:
             killall ffmpeg 2>/dev/null
             sleep 5
           done
+          
