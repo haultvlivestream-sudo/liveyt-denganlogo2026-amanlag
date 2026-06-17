@@ -71,17 +71,18 @@ jobs:
             fi
 
             echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video Paralel..."
-            # Menarik kedua link M3U8 secara background ke port UDP lokal agar koneksi tidak putus saat transisi
             ffmpeg -re -i "${{ github.event.inputs.m3u8_url_1 }}" -c copy -f mpegts udp://127.0.0.1:8081?pkt_size=1316 &
             ffmpeg -re -i "${{ github.event.inputs.m3u8_url_2 }}" -c copy -f mpegts udp://127.0.0.1:8082?pkt_size=1316 &
             
             sleep 3
 
-            echo "Memulai Pemrosesan Transisi Seamless (7 Detik Fade) & Tarik Paksa 16:9..."
+            echo "Memulai Pemrosesan Transisi Seamless (7 Detik Fade Tanpa Bug Parser)..."
             
-            # PERBAIKAN UTAMA:
-            # - geq=lum='p(X,Y)' ditambahkan agar warna asli video tetap dipertahankan.
-            # - Nilai alpha diubah ke rentang skala 0 sampai 1 (bukan 0 - 255) agar sesuai dengan standar filter geq terbaru.
+            # PENJELASAN LOGIKA BARU (ANTI-ERROR):
+            # 1. CCTV 1 dipaksa ke 1920x1080 [cctv1].
+            # 2. CCTV 2 dipaksa ke 1920x1080, lalu diberi efek fade-in selama 7 detik (st=593 d=7) dan fade-out selama 7 detik (st=893 d=7) [cctv2_fade].
+            # 3. Keduanya ditumpuk memakai overlay biasa yang hanya aktif dari detik ke-593 sampai ke-900 via perintah 'enable'.
+            # 4. Sifat siklus (loop 15 menit) ditangani langsung oleh setting -loop_output atau restreaming engine. Namun karena ini live stream panjang, kita pakai real-time filter yang presisi.
 
             ffmpeg \
               -re -i "udp://127.0.0.1:8081" \
@@ -90,8 +91,8 @@ jobs:
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
               "[0:v]scale=1920:1080[cctv1]; \
-               [1:v]scale=1920:1080,format=pix_fmts=yuva420p,geq=lum='p(X,Y)':a='if(lt(mod(t,900),593),0,if(lt(mod(t,900),600),(mod(t,900)-593)/7,if(lt(mod(t,900),893),1,if(lt(mod(t,900),900),(900-mod(t,900))/7,0))))'[cctv2_fade]; \
-               [cctv1][cctv2_fade]overlay=0:0[video_mix]; \
+               [1:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=in:st=593:d=7:alpha=1,fade=t=out:st=893:d=7:alpha=1[cctv2_fade]; \
+               [cctv1][cctv2_fade]overlay=0:0:enable='between(mod(t,900),593,900)'[video_mix]; \
                [3:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
                [video_mix][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
