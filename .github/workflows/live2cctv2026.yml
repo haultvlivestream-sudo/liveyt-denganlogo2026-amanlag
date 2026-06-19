@@ -1,4 +1,4 @@
-name: live percobaan cctv
+name: Live CCTV Fixx Juni 2026
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          LOGO_FILE="logoihya2026.mp4"
+          LOGO_FILE="logoihyajuni2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
@@ -79,7 +79,7 @@ jobs:
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
               "[0:v]scale=1920:1080[cctv_widescreen]; \
-               [2:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
+               [2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.12:-1[logo]; \
                [cctv_widescreen][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
