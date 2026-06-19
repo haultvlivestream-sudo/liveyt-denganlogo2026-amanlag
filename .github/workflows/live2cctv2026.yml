@@ -1,4 +1,4 @@
-Name: Live PERCOBAAN CCTV m3u8 Fix 2026
+name: Live PERCOBAAN CCTV m3u8 Fix 2026
 
 on:
   workflow_dispatch:
