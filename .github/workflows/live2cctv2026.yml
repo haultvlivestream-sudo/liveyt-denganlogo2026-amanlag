@@ -1,19 +1,16 @@
-name: Live 2 CCTV
+Name: Live PERCOBAAN CCTV m3u8 Fix 2026
 
 on:
   workflow_dispatch:
     inputs:
-      m3u8_url_1:
-        description: '1. Link .m3u8 Pertama (10 Menit)'
-        required: true
-      m3u8_url_2:
-        description: '2. Link .m3u8 Kedua (5 Menit)'
+      m3u8_url:
+        description: '1. Link .m3u8 (Video)'
         required: true
       audio_url:
-        description: '3. Link YouTube (Audio)'
+        description: '2. Link YouTube (Audio)'
         required: true
       kunci_rtmp:
-        description: '4. Stream Key YouTube'
+        description: '3. Stream Key YouTube'
         required: true
 
 jobs:
@@ -70,26 +67,33 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
+            echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
+            ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" -c copy -f mpegts udp://127.0.0.1:8080?pkt_size=1316 &
             
-            ffmpeg \
-              -headers "User-Agent: Mozilla/5.0" -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${{ github.event.inputs.m3u8_url_1 }}" \
-              -headers "User-Agent: Mozilla/5.0" -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${{ github.event.inputs.m3u8_url_2 }}" \
-              -re -i "$AUDIO_STREAM" \
+            sleep 3
+
+            echo "Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
+            
+            # PERUBAHAN:
+            # - Menghapus `-re` dari audio agar FFmpeg membaca speed normal.
+            # - Menambahkan perintah `-shortest` di paling bawah agar saat audio habis, FFmpeg otomatis close, 
+            #   lalu script 'while true' di atas akan mengambil token audio baru lagi secara otomatis (aman dari expired token).
+            
+            ffmpeg -re -i "udp://127.0.0.1:8080" \
+              -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
-              "[0:v]scale=1920:1080[cctv1]; \
-               [1:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=in:st=593:d=7:alpha=1,fade=t=out:st=893:d=7:alpha=1[cctv2_fade]; \
-               [cctv1][cctv2_fade]overlay=0:0:enable='between(mod(t,900),593,900)'[video_mix]; \
-               [3:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
-               [video_mix][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
+              "[0:v]scale=1920:1080[cctv_widescreen]; \
+               [2:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
+               [cctv_widescreen][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
-              -map "[v_out]" -map 2:a:0 \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+              -map "[v_out]" -map 1:a:0 \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}" \
+              -shortest
 
-            echo "Stream terputus atau selesai. Mengulang dalam 5 detik..."
+            echo "Audio habis atau stream terputus. Mengambil ulang link baru dalam 5 detik..."
             killall ffmpeg 2>/dev/null
             sleep 5
           done
