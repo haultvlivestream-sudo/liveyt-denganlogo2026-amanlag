@@ -79,7 +79,7 @@ jobs:
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
               "[0:v]scale=1920:1080[cctv_widescreen]; \
-               [2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.18:-1[logo]; \
+               [2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.17:-1[logo]; \
                [cctv_widescreen][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
               -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
