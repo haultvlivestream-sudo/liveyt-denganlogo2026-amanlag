@@ -1,4 +1,4 @@
-name: Live PERCOBAAN CCTV m3u8 Fix 2026
+name: live percobaan cctv
 
 on:
   workflow_dispatch:
@@ -74,13 +74,8 @@ jobs:
 
             echo "Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
             
-            # PERUBAHAN:
-            # - Menghapus `-re` dari audio agar FFmpeg membaca speed normal.
-            # - Menambahkan perintah `-shortest` di paling bawah agar saat audio habis, FFmpeg otomatis close, 
-            #   lalu script 'while true' di atas akan mengambil token audio baru lagi secara otomatis (aman dari expired token).
-            
             ffmpeg -re -i "udp://127.0.0.1:8080" \
-              -i "$AUDIO_STREAM" \
+              -re -i "$AUDIO_STREAM" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
               "[0:v]scale=1920:1080[cctv_widescreen]; \
@@ -93,7 +88,7 @@ jobs:
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}" \
               -shortest
 
-            echo "Audio habis atau stream terputus. Mengambil ulang link baru dalam 5 detik..."
+            echo "Audio habis atau stream selesai. Mengulang sistem dan me-refresh token dalam 5 detik..."
             killall ffmpeg 2>/dev/null
             sleep 5
           done
