@@ -36,8 +36,8 @@ jobs:
           set +e
           echo "$YT_COOKIES" > cookies.txt
           
-          # Memastikan file logo ada
-          LOGO_FILE="logoihyajuni2026.yml"
+          # Memastikan file logo ada (Nama file: logoihyajuni2026.mp4)
+          LOGO_FILE="logoihyajuni2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
@@ -47,12 +47,7 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
             
-            # Mencari link kualitas tertinggi tanpa batasan resolusi
-            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
-                               --js-runtime node \
-                               --force-ipv4 \
-                               -f "bestvideo+bestaudio/best" \
-                               -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+            VIDEO_URL=$(yt-dlp --cookies cookies.txt                                --js-runtime node                                --force-ipv4                                -f "bestvideo+bestaudio/best"                                -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
 
             if [ -z "$VIDEO_URL" ]; then
               echo "Gagal ambil URL. Cek Cookies atau Link!"
@@ -63,21 +58,10 @@ jobs:
             echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
 
             # LOGIKA UTAMA 2026:
-            # 1. Tanpa paksa scale di input (mengikuti resolusi asli sumber).
-            # 2. Logo (1:v) dibuat 14% dari lebar video utama (iw*0.14).
-            # 3. Jarak logo (overlay) dibuat 2% dari lebar layar agar tidak terlalu mepet.
-            # 4. Bitrate 8000k - 10000k untuk menjaga kualitas 2K agar tetap jernih.
-            # 5. Chroma key diatur ke #006900.
+            # 1. Logo (1:v) dibuat 14% dari lebar video utama (iw*0.14).
+            # 2. Chroma key diatur ke #006900.
 
-            ffmpeg -re -i "$VIDEO_URL" \
-              -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex \
-              "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; \
-               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
-              -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
-              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -ar 44100 -b:a 128k \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            ffmpeg -re -i "$VIDEO_URL"               -stream_loop -1 -i "$LOGO_FILE"               -filter_complex               "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo];                [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1"               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0               -c:a aac -ar 44100 -b:a 128k               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
             echo "Stream terputus. Mengulang dalam 5 detik..."
             sleep 5
