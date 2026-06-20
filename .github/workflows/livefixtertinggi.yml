@@ -58,7 +58,7 @@ jobs:
             echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
 
             # LOGIKA UTAMA 2026:
-            # 1. Logo (1:v) dibuat 14% dari lebar video utama (iw*0.14).
+            # 1. Logo (1:v) dibuat 13% dari lebar video utama (iw*0.13).
             # 2. Chroma key diatur ke #006900.
 
             ffmpeg -re -i "$VIDEO_URL"               -stream_loop -1 -i "$LOGO_FILE"               -filter_complex               "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo];                [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1"               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0               -c:a aac -ar 44100 -b:a 128k               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
