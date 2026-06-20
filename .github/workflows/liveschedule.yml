@@ -40,7 +40,7 @@ jobs:
           MANUAL_KEY: ${{ github.event.inputs.kunci_rtmp }}
           
           # Default Baru
-          DEFAULT_LINK: 'https://www.youtube.com/live/Yu4IuQ_ZhBw?si=NJ35OPx-VF0gu9R1'
+          DEFAULT_LINK: 'https://www.youtube.com/live/3N_d1Orrplg?si=MZNj84F9Pr8EazXN'
           DEFAULT_KEY: '7pka-cva2-eg0p-5ww3-fvsm'
           
         run: |
