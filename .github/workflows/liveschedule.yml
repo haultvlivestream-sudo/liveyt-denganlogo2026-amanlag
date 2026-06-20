@@ -1,4 +1,4 @@
-name: Live Streaming Fix 2026 | Auto Schedule 13:00 WIB
+name: Live Streaming Fix 2026 | Auto Schedule 14:35 WIB
 
 on:
   workflow_dispatch:
@@ -10,9 +10,9 @@ on:
         description: 'Stream Key (Kosongkan = Pakai Default)'
         required: false
   
-  # Jadwal: 06:00 UTC = 13:00 WIB
+  # Jadwal: 07:35 UTC = 14:35 WIB
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '35 7 * * *'
 
 jobs:
   streaming:
@@ -86,3 +86,4 @@ jobs:
             echo "Stream terputus. Mengulang dalam 5 detik..."
             sleep 5
           done
+          
