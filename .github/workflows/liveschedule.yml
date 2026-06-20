@@ -1,4 +1,4 @@
-name: Live Streaming Fix 2026 | Auto Schedule 14:35 WIB
+name: Live Streaming Fix 2026 | Auto Schedule 03:00 WIB
 
 on:
   workflow_dispatch:
@@ -10,9 +10,9 @@ on:
         description: 'Stream Key (Kosongkan = Pakai Default)'
         required: false
   
-  # Jadwal: 07:35 UTC = 14:35 WIB
+  # Jadwal: 20:00 UTC = 03:00 WIB
   schedule:
-    - cron: '35 7 * * *'
+    - cron: '00 20 * * *'
 
 jobs:
   streaming:
@@ -39,9 +39,9 @@ jobs:
           MANUAL_LINK: ${{ github.event.inputs.link_youtube }}
           MANUAL_KEY: ${{ github.event.inputs.kunci_rtmp }}
           
-          # Default Hardcoded
-          DEFAULT_LINK: 'https://www.youtube.com/live/87DzTYUimpA?si=HTv1kfsVtya6NXRz'
-          DEFAULT_KEY: 'wz45-ste8-vdsm-06xx-aesk'
+          # Default Baru
+          DEFAULT_LINK: 'https://www.youtube.com/live/Yu4IuQ_ZhBw?si=NJ35OPx-VF0gu9R1'
+          DEFAULT_KEY: '7pka-cva2-eg0p-5ww3-fvsm'
           
         run: |
           set +e
@@ -53,7 +53,6 @@ jobs:
             exit 1
           fi
 
-          # Logika Pemilihan Link & Key
           LINK_SUMBER=${MANUAL_LINK:-$DEFAULT_LINK}
           STREAM_KEY=${MANUAL_KEY:-$DEFAULT_KEY}
 
@@ -72,9 +71,8 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # Filter: Logo 14% dari lebar video, Chroma Key 0x006900
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
