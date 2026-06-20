@@ -1,1 +1,87 @@
+name: Live Streaming Fix 2026 | Auto Schedule 06:00 WIB
 
+on:
+  workflow_dispatch:
+    inputs:
+      link_youtube:
+        description: 'Link Video Sumber (Kosongkan = Pakai Default)'
+        required: false
+      kunci_rtmp:
+        description: 'Stream Key (Kosongkan = Pakai Default)'
+        required: false
+  
+  # Jadwal: 23:00 UTC = 06:00 WIB
+  schedule:
+    - cron: '00 23 * * *'
+
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Install Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
+
+      - name: 4. Jalankan Relay Streaming
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          MANUAL_LINK: ${{ github.event.inputs.link_youtube }}
+          MANUAL_KEY: ${{ github.event.inputs.kunci_rtmp }}
+          
+          # Default Terbaru
+          DEFAULT_LINK: 'https://www.youtube.com/live/F-RWjUJeHy4?si=Ac5Dq1Ek9X6wFO0L'
+          DEFAULT_KEY: '83dx-whf9-ab75-3uw8-4eae'
+          
+        run: |
+          set +e
+          echo "$YT_COOKIES" > cookies.txt
+          
+          LOGO_FILE="logoihyajuni2026.mp4"
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
+            exit 1
+          fi
+
+          LINK_SUMBER=${MANUAL_LINK:-$DEFAULT_LINK}
+          STREAM_KEY=${MANUAL_KEY:-$DEFAULT_KEY}
+
+          while true; do
+            echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
+            
+            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
+                               --js-runtime node \
+                               --force-ipv4 \
+                               -f "bestvideo+bestaudio/best" \
+                               -g "$LINK_SUMBER" 2>/dev/null)
+
+            if [ -z "$VIDEO_URL" ]; then
+              echo "Gagal ambil URL. Cek Cookies atau Link!"
+              sleep 5
+              continue
+            fi
+
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
+
+            ffmpeg -re -i "$VIDEO_URL" \
+              -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
+              -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -ar 44100 -b:a 128k \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
+
+            echo "Stream terputus. Mengulang dalam 5 detik..."
+            sleep 5
+          done
+          
