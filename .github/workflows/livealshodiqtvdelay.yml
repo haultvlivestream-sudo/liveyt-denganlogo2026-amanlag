@@ -1,4 +1,4 @@
-name: Live Bantu AlShodiq tv
+name: Live Bantu AlShodiq tv Delay
 
 on:
   workflow_dispatch:
