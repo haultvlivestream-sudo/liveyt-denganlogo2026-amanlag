@@ -1,4 +1,4 @@
-name: Live Bantu AlShodiq tv Delay
+name: Live Bantu AlShodiq tv Delay 
 
 on:
   workflow_dispatch:
@@ -32,6 +32,7 @@ jobs:
       - name: 3. Install Tools
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          # Download yt-dlp terbaru (tanpa melakukan update -U agar tidak terkena rate limit)
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
@@ -63,9 +64,10 @@ jobs:
               continue
             fi
 
-            # FFmpeg dengan durasi (-t) diletakkan sebelum output agar kalkulasi waktu dimulai dari awal streaming
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg Relay..."
+
+            # Menggunakan ffmpeg dengan fitur reconnect dan limit waktu (durasi_live)
             ffmpeg -re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
-              -t ${{ github.event.inputs.durasi_live }} \
               -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex \
@@ -74,12 +76,16 @@ jobs:
               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
+              -t ${{ github.event.inputs.durasi_live }} \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
+            # Jika FFmpeg berhenti karena durasi tercapai, exit code adalah 0
             if [ $? -eq 0 ]; then
               echo "Streaming selesai sesuai durasi yang diatur."
               break
             fi
 
+            echo "Stream terputus. Mencoba reconnect dalam 5 detik..."
             sleep 5
           done
+          
