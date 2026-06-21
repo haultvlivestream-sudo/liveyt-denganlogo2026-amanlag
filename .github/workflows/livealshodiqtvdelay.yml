@@ -1,62 +1,73 @@
-name: Live AlShodiq tv delay
+name: Live Bantu AlShodiq tv Delay
 
 on:
   workflow_dispatch:
     inputs:
       link_youtube:
-        description: '1. Link Video Sumber'
+        description: 'Link Video Sumber'
         required: true
       kunci_rtmp:
-        description: '2. Stream Key YouTube'
+        description: 'Stream Key YouTube'
         required: true
-      jam_mulai:
-        description: '3. Jam Mulai (HH:MM:SS)'
-        required: true
-        default: '00:00:00'
-      jam_akhir:
-        description: '4. Jam Akhir (HH:MM:SS)'
-        required: true
-        default: '02:43:00'
 
 jobs:
   streaming:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fix Node.js Path
+        run: echo "$(dirname $(which node))" >> $GITHUB_PATH
 
       - name: Install Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg curl
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
 
-      - name: Jalankan Streaming
+      - name: Jalankan Relay Streaming
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           echo "$YT_COOKIES" > cookies.txt
           
-          # Mengambil URL Sumber
-          VIDEO_URL=$(yt-dlp --cookies cookies.txt --force-ipv4 -f "best[ext=mp4]/best" -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
-
-          if [ -z "$VIDEO_URL" ]; then
-            echo "ERROR: Gagal mendapatkan URL sumber. Proses dihentikan."
+          LOGO_FILE="logoalshodiqtv.mp4"
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             exit 1
           fi
 
-          echo "Sumber ditemukan. Memulai streaming selama ${{ github.event.inputs.jam_akhir }}..."
+          echo "--- [$(date)] Mencari Kualitas Terbaik dari Sumber ---"
+          
+          VIDEO_URL=$(yt-dlp --cookies cookies.txt \
+                             --js-runtime node \
+                             --force-ipv4 \
+                             -f "best[ext=mp4]/best" \
+                             -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
 
-          # Menjalankan FFmpeg sekali saja
-          # Jika stream putus, FFmpeg akan keluar dan job akan selesai (tidak looping)
+          if [ -z "$VIDEO_URL" ]; then
+            echo "Gagal ambil URL. Cek Cookies atau Link!"
+            exit 1
+          fi
+
+          echo "SUMBER DITEMUKAN! Memulai FFmpeg Relay..."
+
           ffmpeg -re -i "$VIDEO_URL" \
-            -stream_loop -1 -i "logoalshodiqtv.mp4" \
-            -filter_complex "[1:v]colorkey=0x007200:0.1:0.1,scale=iw*0.15:-1[logo];[0:v][logo]overlay=W-w-(W*0.03):(W*0.03):shortest=1" \
+            -stream_loop -1 -i "$LOGO_FILE" \
+            -filter_complex \
+            "[1:v]colorkey=0x007200:0.1:0.1,scale=iw*0.15:-1[logo]; \
+             [0:v][logo]overlay=W-w-(W*0.03):(W*0.03):shortest=1" \
             -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -ar 44100 -b:a 128k \
-            -t ${{ github.event.inputs.jam_akhir }} \
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-          echo "Streaming telah selesai atau terputus. Proses berhenti total."
+          echo "Stream telah berakhir/terputus. Job selesai."
           
