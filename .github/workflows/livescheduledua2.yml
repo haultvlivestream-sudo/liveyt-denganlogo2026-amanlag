@@ -1,4 +1,4 @@
-name: Live Streaming Fix 2026 | Auto Schedule 06:00 WIB
+Name: Live Streaming Fix 2026 | Auto Schedule 06:00 WIB
 
 on:
   workflow_dispatch:
