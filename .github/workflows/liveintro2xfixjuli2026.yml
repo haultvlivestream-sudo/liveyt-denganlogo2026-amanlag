@@ -1,0 +1,105 @@
+name: LIVE FIXX TERTINGGI JULI 2026 INTRO 2X
+
+on:
+  workflow_dispatch:
+    inputs:
+      link_youtube:
+        description: 'Link Video Sumber'
+        required: true
+      kunci_rtmp:
+        description: 'Stream Key YouTube'
+        required: true
+
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Install Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
+
+      - name: 4. Jalankan Relay Streaming
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          set +e
+          echo "$YT_COOKIES" > cookies.txt
+          
+          # Memastikan file asset lengkap
+          LOGO_FILE="logoihyajuni2026.mp4"
+          INTRO_FILE="intrologoihya7tvjuli2026.mp4"
+          
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
+            ls
+            exit 1
+          fi
+          
+          if [ ! -f "$INTRO_FILE" ]; then
+            echo "ERROR: File $INTRO_FILE tidak ditemukan!"
+            ls
+            exit 1
+          fi
+
+          # Mengambil durasi asli intro untuk menghitung total waktu 2x putar + pudar
+          INTRO_DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INTRO_FILE")
+          # Total durasi untuk 2 kali putar
+          TOTAL_INTRO_DURATION=$(awk "BEGIN {print $INTRO_DURATION * 2}")
+          # Waktu mulai pudar (3 detik sebelum intro benar-benar hilang)
+          FADE_START=$(awk "BEGIN {print $TOTAL_INTRO_DURATION - 3}")
+
+          echo "Durasi Intro: $INTRO_DURATION detik. Total Jalan 2x: $TOTAL_INTRO_DURATION detik."
+          echo "Efek Pudar (Fade Out 3 Detik) akan dimulai pada detik ke: $FADE_START"
+
+          while true; do
+            echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
+            
+            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
+                               --js-runtime node \
+                               --force-ipv4 \
+                               -f "bestvideo+bestaudio/best" \
+                               -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+
+            if [ -z "$VIDEO_URL" ]; then
+              echo "Gagal ambil URL. Cek Cookies atau Link!"
+              sleep 5
+              continue
+            fi
+
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Intro 2x dan Resolusi Adaptif..."
+
+            # LOGIKA FILTER COMPLEX:
+            # [0:v] = Live Sumber, [1:v] = Logo Pojok (Chroma), [2:v] = Intro Fullscreen
+            # - Filter Logo: Menghapus chroma key hijau, scale 14%, ditempel di kanan atas.
+            # - Filter Intro: Loop 2x, buang audionya (-an / tidak dimasukkan ke filter audio), 
+            #   diberi efek fade out (pudar hilang) selama 3 detik di akhir loop ke-2.
+            # - Filter Overlay Akhir: Menimpa siaran utama dengan Intro hanya selama durasi total intro berjalan.
+
+            ffmpeg -re -i "$VIDEO_URL" \
+              -stream_loop -1 -i "$LOGO_FILE" \
+              -stream_loop 1 -i "$INTRO_FILE" \
+              -filter_complex \
+              "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; \
+               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; \
+               [2:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2, \
+                    fade=t=out:st=$FADE_START:d=3[intro_faded]; \
+               [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)':shortest=1" \
+              -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -ar 44100 -b:a 128k \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            echo "Stream terputus. Mengulang dalam 5 detik..."
+            sleep 5
+          done
