@@ -1,0 +1,97 @@
+name: Live Streaming Fix 2026 | Resolusi Tertinggi 2
+
+on:
+  workflow_dispatch:
+    inputs:
+      link_youtube:
+        description: 'Link Video Sumber'
+        required: true
+      kunci_rtmp:
+        description: 'Stream Key YouTube'
+        required: true
+
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Install Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
+
+      - name: 4. Jalankan Relay Streaming
+        run: |
+          set +e
+          
+          # Membuat file cookies.txt langsung di dalam script
+          cat << 'EOF' > cookies.txt
+          # Netscape HTTP Cookie File
+          # https://curl.haxx.se/rfc/cookie_spec.html
+          # This is a generated file! Do not edit.
+
+          .youtube.com	TRUE	/	TRUE	1816413302	PREF	f6=40000000&tz=Asia.Jakarta&f4=4000000
+          .youtube.com	TRUE	/	TRUE	1781854698	GPS	1
+          .youtube.com	TRUE	/	FALSE	1816413026	HSID	AnNBWQEzmf1YKJ3cL
+          .youtube.com	TRUE	/	TRUE	1816413026	SSID	A9GVtpYgC-hUqY_bM
+          .youtube.com	TRUE	/	FALSE	1816413026	APISID	OwGLaHDlngcmmyHD/AbYPHMExyhHD2thPu
+          .youtube.com	TRUE	/	TRUE	1816413026	SAPISID	TK0sZR4QLu1Q7spP/ATauGtIBDLrSI0H_U
+          .youtube.com	TRUE	/	TRUE	1816413026	__Secure-1PAPISID	TK0sZR4QLu1Q7spP/ATauGtIBDLrSI0H_U
+          .youtube.com	TRUE	/	TRUE	1816413026	__Secure-3PAPISID	TK0sZR4QLu1Q7spP/ATauGtIBDLrSI0H_U
+          .youtube.com	TRUE	/	FALSE	1816413026	SID	g.a000_Qhc4vlQrx6xIvxGQ7c_02WXeSVMnatunphgwnFYdoh4mfUrdYd3cpX2D3-7tDeRgn69kQACgYKAScSARMSFQHGX2Mix7aUW2-A68Rfi9iG3zW_dxoVAUF8yKolTJJqS_4WF1DRHsdxg4Xz0076
+          .youtube.com	TRUE	/	TRUE	1816413026	__Secure-1PSID	g.a000_Qhc4vlQrx6xIvxGQ7c_02WXeSVMnatunphgwnFYdoh4mfUrPvI6PU_L9S-8y3euX-GjGgACgYKAXESARMSFQHGX2Mi_fAsunchD7fXk4W49pSaCRoVAUF8yKpBNJxQnRgJPweu2N__nT8M0076
+          .youtube.com	TRUE	/	TRUE	1816413026	__Secure-3PSID	g.a000_Qhc4vlQrx6xIvxGQ7c_02WXeSVMnatunphgwnFYdoh4mfUrAfQOWAdFmmp72x-hvGU4fwACgYKAQESARMSFQHGX2MiHHwfLwcHWeCkqAzt-xNIIhoVAUF8yKooy5V91xuqI9EwIAWQ-Uxj0076
+          .youtube.com	TRUE	/	TRUE	1813389026	__Secure-1PSIDTS	sidts-CjQByojQU4X2pxMhcAEOHLGXPdxAuS2P_W5x4YtNiUvW8jJSEERCbFM7xJcMdO2953ifBnYyEAA
+          .youtube.com	TRUE	/	TRUE	1813389026	__Secure-3PSIDTS	sidts-CjQByojQU4X2pxMhcAEOHLGXPdxAuS2P_W5x4YtNiUvW8jJSEERCbFM7xJcMdO2953ifBnYyEAA
+          .youtube.com	TRUE	/	TRUE	1816413027	LOGIN_INFO	AFmmF2swRQIhAM05cL6q9ze2id85hn6U5lpVf8dUSOdzFzzhm5TidL9rAiBJ-nCWEWNG_JFNZN_k12vSPFdb7Juv__By5AlYgQqHRg:QUQ3MjNmd05feU1Lb3A2NUhiZU85TVAzUERLTzZLT0k4WlB4NlhienZYRjBGdWUzM1ZzSy1rcks5QmpYYUxSZnZjbFNzc0NpaFdSSGRZS0x0dVdUOWQwbmdxZGpIbDhPSXZwM0toNDN4VUNWdk5aV2tXZmFRSHV1YmJoRzFwZmZ3VFNyNm9nWXBLT1ZVNC0yZ1pfYnBBeW1FN05vblplRDZn
+          .youtube.com	TRUE	/	FALSE	1813389314	SIDCC	AKEyXzUvHu7XgwfRhu11v2-9UnZCeR5tMOKSilosX9xjgCAxZn8zXYxxBW3xKCi6SnjN_HUrcg
+          .youtube.com	TRUE	/	TRUE	1813389314	__Secure-1PSIDCC	AKEyXzVV8a5G5GcsnLZAyYkwDZxcUe1nxJ_LIcPp4I5WxidRwAypdzL3fvdt54_4oeuvJE4a
+          .youtube.com	TRUE	/	TRUE	1813389314	__Secure-3PSIDCC	AKEyXzV_4_1XMm0sSic2ga0p1oUwSVx704X6VjoGK3ZMXpE8yYO9atZBYZ59tJpnR7jRJqqcgw
+          EOF
+          
+          # Memastikan file logo ada (Nama file: logoihyajuni2026.mp4)
+          LOGO_FILE="logoihyajuni2026.mp4"
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
+            ls
+            exit 1
+          fi
+
+          while true; do
+            echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
+            
+            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
+                               --js-runtime node \
+                               --force-ipv4 \
+                               -f "bestvideo+bestaudio/best" \
+                               -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+
+            if [ -z "$VIDEO_URL" ]; then
+              echo "Gagal ambil URL. Cek Cookies atau Link!"
+              sleep 5
+              continue
+            fi
+
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
+
+            ffmpeg -re -i "$VIDEO_URL" \
+                   -stream_loop -1 -i "$LOGO_FILE" \
+                   -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
+                   -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
+                   -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                   -c:a aac -ar 44100 -b:a 128k \
+                   -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            echo "Stream terputus. Mengulang dalam 5 detik..."
+            sleep 5
+          done
+          
