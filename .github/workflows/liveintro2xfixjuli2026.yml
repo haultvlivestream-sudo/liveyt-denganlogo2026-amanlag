@@ -54,9 +54,9 @@ jobs:
 
           # Mengambil durasi asli intro untuk menghitung total waktu 2x putar + pudar
           INTRO_DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INTRO_FILE")
-          # Total durasi untuk 2 kali putar
+          # Total durasi untuk 2 kali putar (8.08 x 2 = 16.16)
           TOTAL_INTRO_DURATION=$(awk "BEGIN {print $INTRO_DURATION * 2}")
-          # Waktu mulai pudar (3 detik sebelum intro benar-benar hilang)
+          # Waktu mulai pudar (3 detik sebelum intro benar-benar hilang, yaitu detik ke-13.16)
           FADE_START=$(awk "BEGIN {print $TOTAL_INTRO_DURATION - 3}")
 
           echo "Durasi Intro: $INTRO_DURATION detik. Total Jalan 2x: $TOTAL_INTRO_DURATION detik."
@@ -65,11 +65,8 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
             
-            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
-                               --js-runtime node \
-                               --force-ipv4 \
-                               -f "bestvideo+bestaudio/best" \
-                               -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+            # DIKEMBALIKAN KE FORMAT SATU BARIS LURUS SEPERTI SCRIPT ASLIMU:
+            VIDEO_URL=$(yt-dlp --cookies cookies.txt --js-runtime node --force-ipv4 -f "bestvideo+bestaudio/best" -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
 
             if [ -z "$VIDEO_URL" ]; then
               echo "Gagal ambil URL. Cek Cookies atau Link!"
@@ -79,22 +76,11 @@ jobs:
 
             echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Intro 2x dan Resolusi Adaptif..."
 
-            # LOGIKA FILTER COMPLEX:
-            # [0:v] = Live Sumber, [1:v] = Logo Pojok (Chroma), [2:v] = Intro Fullscreen
-            # - Filter Logo: Menghapus chroma key hijau, scale 14%, ditempel di kanan atas.
-            # - Filter Intro: Loop 2x, buang audionya (-an / tidak dimasukkan ke filter audio), 
-            #   diberi efek fade out (pudar hilang) selama 3 detik di akhir loop ke-2.
-            # - Filter Overlay Akhir: Menimpa siaran utama dengan Intro hanya selama durasi total intro berjalan.
-
+            # EKSEKUSI FFMPEG DENGAN STRUKTUR OVERLAY INTRO 2X + AUDIO ASLI STREAM
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -stream_loop 1 -i "$INTRO_FILE" \
-              -filter_complex \
-              "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; \
-               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; \
-               [2:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2, \
-                    fade=t=out:st=$FADE_START:d=3[intro_faded]; \
-               [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)':shortest=1" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fade=t=out:st=$FADE_START:d=3[intro_faded]; [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)':shortest=1" \
               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
@@ -103,3 +89,4 @@ jobs:
             echo "Stream terputus. Mengulang dalam 5 detik..."
             sleep 5
           done
+          
