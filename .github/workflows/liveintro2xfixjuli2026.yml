@@ -73,17 +73,18 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif & Anti-Lag..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Logika Berlapis (Logo Adaptif + Intro 16:9)..."
 
-            # KEMBALI KE LOGIKA ORIGINAL KAMU:
-            # - Menggunakan ukuran logo adaptif dari video utama: 'scale=iw*0.13:-1' (atau iw*0.14 sesuai selera aslimu)
-            # - Input video utama [0:v] dibiarkan aslinya tanpa di-scale paksa (Resolusi Adaptif).
-            # - Ditambahkan '-rw_timeout 10000000' sebelum '-i "$VIDEO_URL"' agar kalau LAG/Macet lebih dari 10 detik, otomatis close & ngerestart loop dari awal.
+            # EKSEKUSI UTAMA FFMPEG 2026:
+            # - Timeout otomatis 10 detik (-rw_timeout 10000000) jika sumber terdeteksi lag/buffering parah.
+            # - Ukuran logo 13% dari lebar video utama (scale=iw*0.13:-1).
+            # - Video intro dikunci murni ke format layar lebar 16:9 (scale=1920:1080) dan diposisikan simetris di tengah.
+            # - Efek pudar transparan (alpha=1) menembus langsung ke siaran live tanpa jeda kedip hitam.
             
             ffmpeg -re -rw_timeout 10000000 -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -stream_loop 1 -i "$INTRO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=iw:ih,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
