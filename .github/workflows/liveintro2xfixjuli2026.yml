@@ -54,13 +54,13 @@ jobs:
 
           # Mengambil durasi asli intro
           INTRO_DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INTRO_FILE")
-          # Total durasi untuk 2 kali putar (8.08 x 2 = 16.16)
+          # Total durasi untuk 2 kali putar
           TOTAL_INTRO_DURATION=$(awk "BEGIN {print $INTRO_DURATION * 2}")
-          # Waktu mulai pudar (3 detik sebelum intro benar-benar hilang, yaitu detik ke-13.16)
+          # Waktu mulai pudar (3 detik sebelum intro habis)
           FADE_START=$(awk "BEGIN {print $TOTAL_INTRO_DURATION - 3}")
 
           echo "Durasi Intro: $INTRO_DURATION detik. Total Jalan 2x: $TOTAL_INTRO_DURATION detik."
-          echo "Efek Pudar (Fade Out 3 Detik) akan dimulai pada detik ke: $FADE_START"
+          echo "Efek Pudar (Fade Out Transparan 3 Detik) akan dimulai pada detik ke: $FADE_START"
 
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
@@ -73,18 +73,18 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Intro Fullscreen 1080p..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Alpha Fade (Anti-Hitam)..."
 
-            # PERBAIKAN LOGIKA FFMPEG:
-            # 1. Video Utama [0:v] dipaksa scale ke 1920x1080 agar jernih dan sejajar dengan Intro.
-            # 2. Logo [1:v] dihitung dari kanvas 1080p tersebut (iw*0.14).
-            # 3. Intro [2:v] di-scale paksa full 1920x1080 agar tidak ada black bar / tidak kepotong.
-            # 4. Parameter 'shortest=1' DIHAPUS agar stream tetap jalan abadi setelah intro habis.
+            # PERBAIKAN STRUKTUR LAYER OVERLAY (ANTI-HITAM):
+            # Layer 1 [main_v]: Video Utama (Sumber Live)
+            # Layer 2 [main_with_logo]: Ditempeli Logo Pojok Kanan Atas
+            # Layer 3 [intro_faded]: Intro dipaksa punya channel Alpha (yuva420p) agar saat fade out, 
+            # yang berkurang adalah OPASITAS/TRANSPARANSI-NYA (menjadi tembus pandang), bukan berubah jadi hitam.
             
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -stream_loop 1 -i "$INTRO_FILE" \
-              -filter_complex "[0:v]scale=1920:1080[main_v]; [1:v]colorkey=0x006900:0.1:0.1,scale=1920*0.14:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,fade=t=out:st=$FADE_START:d=3[intro_faded]; [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+              -filter_complex "[0:v]scale=1920:1080[main_v]; [1:v]colorkey=0x006900:0.1:0.1,scale=1920*0.14:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
