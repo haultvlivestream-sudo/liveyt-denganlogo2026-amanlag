@@ -52,7 +52,7 @@ jobs:
             exit 1
           fi
 
-          # Mengambil durasi asli intro untuk menghitung total waktu 2x putar + pudar
+          # Mengambil durasi asli intro
           INTRO_DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INTRO_FILE")
           # Total durasi untuk 2 kali putar (8.08 x 2 = 16.16)
           TOTAL_INTRO_DURATION=$(awk "BEGIN {print $INTRO_DURATION * 2}")
@@ -65,7 +65,6 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
             
-            # DIKEMBALIKAN KE FORMAT SATU BARIS LURUS SEPERTI SCRIPT ASLIMU:
             VIDEO_URL=$(yt-dlp --cookies cookies.txt --js-runtime node --force-ipv4 -f "bestvideo+bestaudio/best" -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -74,13 +73,18 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Intro 2x dan Resolusi Adaptif..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Intro Fullscreen 1080p..."
 
-            # EKSEKUSI FFMPEG DENGAN STRUKTUR OVERLAY INTRO 2X + AUDIO ASLI STREAM
+            # PERBAIKAN LOGIKA FFMPEG:
+            # 1. Video Utama [0:v] dipaksa scale ke 1920x1080 agar jernih dan sejajar dengan Intro.
+            # 2. Logo [1:v] dihitung dari kanvas 1080p tersebut (iw*0.14).
+            # 3. Intro [2:v] di-scale paksa full 1920x1080 agar tidak ada black bar / tidak kepotong.
+            # 4. Parameter 'shortest=1' DIHAPUS agar stream tetap jalan abadi setelah intro habis.
+            
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -stream_loop 1 -i "$INTRO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fade=t=out:st=$FADE_START:d=3[intro_faded]; [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)':shortest=1" \
+              -filter_complex "[0:v]scale=1920:1080[main_v]; [1:v]colorkey=0x006900:0.1:0.1,scale=1920*0.14:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,fade=t=out:st=$FADE_START:d=3[intro_faded]; [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
