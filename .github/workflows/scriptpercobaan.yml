@@ -1,4 +1,4 @@
-Name: Live Streaming Fix 2026 | Resolusi Tertinggi percobaan 
+name: Live Streaming Fix 2026 | Resolusi Tertinggi percobaan 
 
 on:
   workflow_dispatch:
