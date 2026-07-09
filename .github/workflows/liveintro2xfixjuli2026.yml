@@ -73,24 +73,23 @@ jobs:
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Alpha Fade (Anti-Hitam)..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif & Anti-Lag..."
 
-            # PERBAIKAN STRUKTUR LAYER OVERLAY (ANTI-HITAM):
-            # Layer 1 [main_v]: Video Utama (Sumber Live)
-            # Layer 2 [main_with_logo]: Ditempeli Logo Pojok Kanan Atas
-            # Layer 3 [intro_faded]: Intro dipaksa punya channel Alpha (yuva420p) agar saat fade out, 
-            # yang berkurang adalah OPASITAS/TRANSPARANSI-NYA (menjadi tembus pandang), bukan berubah jadi hitam.
+            # KEMBALI KE LOGIKA ORIGINAL KAMU:
+            # - Menggunakan ukuran logo adaptif dari video utama: 'scale=iw*0.13:-1' (atau iw*0.14 sesuai selera aslimu)
+            # - Input video utama [0:v] dibiarkan aslinya tanpa di-scale paksa (Resolusi Adaptif).
+            # - Ditambahkan '-rw_timeout 10000000' sebelum '-i "$VIDEO_URL"' agar kalau LAG/Macet lebih dari 10 detik, otomatis close & ngerestart loop dari awal.
             
-            ffmpeg -re -i "$VIDEO_URL" \
+            ffmpeg -re -rw_timeout 10000000 -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -stream_loop 1 -i "$INTRO_FILE" \
-              -filter_complex "[0:v]scale=1920:1080[main_v]; [1:v]colorkey=0x006900:0.1:0.1,scale=1920*0.14:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=iw:ih,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=0:0:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
               -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus. Mengulang dalam 5 detik..."
+            echo "Stream terputus atau terdeteksi LAG. Mengulang dalam 5 detik..."
             sleep 5
           done
           
