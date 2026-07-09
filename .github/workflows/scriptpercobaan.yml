@@ -1,4 +1,4 @@
-name: Live Streaming Fix 2026 | Resolusi Tertinggi 2
+Name: Live Streaming Fix 2026 | Resolusi Tertinggi percobaan 
 
 on:
   workflow_dispatch:
@@ -33,30 +33,17 @@ jobs:
         run: |
           set +e
           
-          # Membuat file cookies.txt langsung di dalam script
-          cat << 'EOF' > cookies.txt
-          # Netscape HTTP Cookie File
-          # https://curl.haxx.se/rfc/cookie_spec.html
-          # This is a generated file! Do not edit.
-
-          .youtube.com	TRUE	/	TRUE	1816413302	PREF	f6=40000000&tz=Asia.Jakarta&f4=4000000
-          .youtube.com	TRUE	/	TRUE	1781854698	GPS	1
-          .youtube.com	TRUE	/	FALSE	1816413026	HSID	AnNBWQEzmf1YKJ3cL
-          .youtube.com	TRUE	/	TRUE	1816413026	SSID	A9GVtpYgC-hUqY_bM
-          .youtube.com	TRUE	/	FALSE	1816413026	APISID	OwGLaHDlngcmmyHD/AbYPHMExyhHD2thPu
-          .youtube.com	TRUE	/	TRUE	1816413026	SAPISID	TK0sZR4QLu1Q7spP/ATauGtIBDLrSI0H_U
-          .youtube.com	TRUE	/	TRUE	1816413026	__Secure-1PAPISID	TK0sZR4QLu1Q7spP/ATauGtIBDLrSI0H_U
-          .youtube.com	TRUE	/	TRUE	1816413026	__Secure-3PAPISID	TK0sZR4QLu1Q7spP/ATauGtIBDLrSI0H_U
-          .youtube.com	TRUE	/	FALSE	1816413026	SID	g.a000_Qhc4vlQrx6xIvxGQ7c_02WXeSVMnatunphgwnFYdoh4mfUrdYd3cpX2D3-7tDeRgn69kQACgYKAScSARMSFQHGX2Mix7aUW2-A68Rfi9iG3zW_dxoVAUF8yKolTJJqS_4WF1DRHsdxg4Xz0076
-          .youtube.com	TRUE	/	TRUE	1816413026	__Secure-1PSID	g.a000_Qhc4vlQrx6xIvxGQ7c_02WXeSVMnatunphgwnFYdoh4mfUrPvI6PU_L9S-8y3euX-GjGgACgYKAXESARMSFQHGX2Mi_fAsunchD7fXk4W49pSaCRoVAUF8yKpBNJxQnRgJPweu2N__nT8M0076
-          .youtube.com	TRUE	/	TRUE	1816413026	__Secure-3PSID	g.a000_Qhc4vlQrx6xIvxGQ7c_02WXeSVMnatunphgwnFYdoh4mfUrAfQOWAdFmmp72x-hvGU4fwACgYKAQESARMSFQHGX2MiHHwfLwcHWeCkqAzt-xNIIhoVAUF8yKooy5V91xuqI9EwIAWQ-Uxj0076
-          .youtube.com	TRUE	/	TRUE	1813389026	__Secure-1PSIDTS	sidts-CjQByojQU4X2pxMhcAEOHLGXPdxAuS2P_W5x4YtNiUvW8jJSEERCbFM7xJcMdO2953ifBnYyEAA
-          .youtube.com	TRUE	/	TRUE	1813389026	__Secure-3PSIDTS	sidts-CjQByojQU4X2pxMhcAEOHLGXPdxAuS2P_W5x4YtNiUvW8jJSEERCbFM7xJcMdO2953ifBnYyEAA
-          .youtube.com	TRUE	/	TRUE	1816413027	LOGIN_INFO	AFmmF2swRQIhAM05cL6q9ze2id85hn6U5lpVf8dUSOdzFzzhm5TidL9rAiBJ-nCWEWNG_JFNZN_k12vSPFdb7Juv__By5AlYgQqHRg:QUQ3MjNmd05feU1Lb3A2NUhiZU85TVAzUERLTzZLT0k4WlB4NlhienZYRjBGdWUzM1ZzSy1rcks5QmpYYUxSZnZjbFNzc0NpaFdSSGRZS0x0dVdUOWQwbmdxZGpIbDhPSXZwM0toNDN4VUNWdk5aV2tXZmFRSHV1YmJoRzFwZmZ3VFNyNm9nWXBLT1ZVNC0yZ1pfYnBBeW1FN05vblplRDZn
-          .youtube.com	TRUE	/	FALSE	1813389314	SIDCC	AKEyXzUvHu7XgwfRhu11v2-9UnZCeR5tMOKSilosX9xjgCAxZn8zXYxxBW3xKCi6SnjN_HUrcg
-          .youtube.com	TRUE	/	TRUE	1813389314	__Secure-1PSIDCC	AKEyXzVV8a5G5GcsnLZAyYkwDZxcUe1nxJ_LIcPp4I5WxidRwAypdzL3fvdt54_4oeuvJE4a
-          .youtube.com	TRUE	/	TRUE	1813389314	__Secure-3PSIDCC	AKEyXzV_4_1XMm0sSic2ga0p1oUwSVx704X6VjoGK3ZMXpE8yYO9atZBYZ59tJpnR7jRJqqcgw
-          EOF
+          # PENGATURAN COOKIES BARU (2026):
+          # Menggunakan file cookie yang di-upload langsung di repositori
+          COOKIE_FILE="www.youtube.com_cookies (2).txt"
+          
+          # Cek apakah file cookie ada di repositori
+          if [ ! -f "$COOKIE_FILE" ]; then
+            echo "ERROR: File Cookie '$COOKIE_FILE' tidak ditemukan di repositori!"
+            echo "Daftar file yang ada saat ini:"
+            ls -la
+            exit 1
+          fi
           
           # Memastikan file logo ada (Nama file: logoihyajuni2026.mp4)
           LOGO_FILE="logoihyajuni2026.mp4"
@@ -69,27 +56,34 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
             
-            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
+            # Membaca link streaming menggunakan file cookie dari repositori
+            VIDEO_URL=$(yt-dlp --cookies "$COOKIE_FILE" \
                                --js-runtime node \
                                --force-ipv4 \
                                -f "bestvideo+bestaudio/best" \
                                -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "Gagal ambil URL. Cek Cookies atau Link!"
+              echo "Gagal ambil URL. Cek isi Cookie di file '$COOKIE_FILE' atau pastikan Link benar!"
               sleep 5
               continue
             fi
 
             echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
 
+            # LOGIKA UTAMA 2026:
+            # 1. Logo (1:v) dibuat 14% dari lebar video utama (iw*0.14).
+            # 2. Chroma key diatur ke #006900.
+
             ffmpeg -re -i "$VIDEO_URL" \
-                   -stream_loop -1 -i "$LOGO_FILE" \
-                   -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
-                   -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
-                   -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-                   -c:a aac -ar 44100 -b:a 128k \
-                   -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+              -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex \
+              "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; \
+               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
+              -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -ar 44100 -b:a 128k \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
             echo "Stream terputus. Mengulang dalam 5 detik..."
             sleep 5
