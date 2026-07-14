@@ -35,12 +35,13 @@ jobs:
         run: |
           set +e
 
-          # Menyiapkan file cookies jika ada
+          # Kita sengaja buat COOKIE_ARG kosong secara default karena YouTube 2026 merotasi cookie IP datacenter secara instan.
+          # Namun jika Anda ingin tetap mencobanya, script ini akan mendeteksi otomatis.
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
-            USE_COOKIE=true
+            COOKIE_ARG="--cookies cookies.txt"
           else
-            USE_COOKIE=false
+            COOKIE_ARG=""
           fi
           
           LOGO_FILE="logoihyajuni2026.mp4"
@@ -50,39 +51,23 @@ jobs:
             exit 1
           fi
 
-          # User-Agent Android Chrome yang umum di Kiwi Browser
-          USER_AGENT="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-
           while true; do
-            echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
-            VIDEO_URL=""
+            echo "--- [$(date)] Mencari Kualitas Tertinggi via Ultra Bypass ---"
+            
+            # PERBAIKAN RADIKAL 2026:
+            # 1. Menggunakan client 'tv,mweb' (Client TV dan Mobile Web adalah yang paling longgar terhadap block IP)
+            # 2. Menghapus custom user-agent agar yt-dlp mencocokkan secara internal bawaan client TV
+            # 3. Menggunakan skema format universal untuk ekstraksi URL cepat
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                --js-runtime node \
+                                --force-ipv4 \
+                                --no-cache-dir \
+                                --extractor-args "youtube:player-client=tv,mweb" \
+                                -f "bestvideo+bestaudio/best" \
+                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
-            # STRATEGI 1: Coba dengan Cookies (jika tersedia)
-            if [ "$USE_COOKIE" = true ]; then
-              echo "Mencoba mengambil URL menggunakan Cookies..."
-              VIDEO_URL=$(yt-dlp --cookies cookies.txt \
-                                  --js-runtime node \
-                                  --force-ipv4 \
-                                  --user-agent "$USER_AGENT" \
-                                  --extractor-args "youtube:player-client=android,web" \
-                                  -f "bestvideo+bestaudio/best" \
-                                  -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
-            fi
-
-            # STRATEGI 2: Fallback Tanpa Cookies (Jika strategi 1 gagal atau cookies tidak ada)
             if [ -z "$VIDEO_URL" ]; then
-              echo "⚠️ Cookies gagal atau tidak digunakan. Mencoba bypass tanpa Cookies..."
-              VIDEO_URL=$(yt-dlp --js-runtime node \
-                                  --force-ipv4 \
-                                  --user-agent "$USER_AGENT" \
-                                  --extractor-args "youtube:player-client=android,web" \
-                                  -f "bestvideo+bestaudio/best" \
-                                  -g "${{ github.event.inputs.link_youtube }}" 2>>yt_error.log)
-            fi
-
-            # Evaluasi Akhir
-            if [ -z "$VIDEO_URL" ]; then
-              echo "❌ GAGAL TOTAL MENDAPATKAN URL VIDEO!"
+              echo "❌ ULTRA BYPASS GAGAL!"
               echo "=== DETAIL ERROR DARI YT-DLP ==="
               cat yt_error.log
               echo "================================="
@@ -91,7 +76,7 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
+            echo "🚀 SUMBER DITEMUKAN DENGAN SUKSES! Memulai FFmpeg..."
 
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
