@@ -54,7 +54,7 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Audio YouTube via Sesi Android Manusia ---"
             
-            # [No 2] Pembaruan Client ke android,web + Trik fallback format audio
+            # [No 2] Pembaruan Client ke android,web + Fallback format audio
             AUDIO_STREAM_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
@@ -77,12 +77,16 @@ jobs:
             echo "🚀 LINK AUDIO BERHASIL DI-BYPASS!"
             echo "Memulai penggabungan CCTV (M3U8) + Audio YouTube..."
 
-            # [No 3] Memastikan TIDAK ADA parameter :shortest=1 pada overlay logo
-            # [No 4] Upgrade Preset CPU ke superfast
-            # [No 5] Penurunan Batas Maksimal Bitrate & Buffer (-maxrate 8000k -bufsize 12000k)
+            # ANTISIPASI TIMEOUT & BLOKIR IP CCTV:
+            # -user_agent : Menyamarkan FFmpeg sebagai browser agar tidak diblokir server CCTV
+            # -rw_timeout 10000000 : Timeout maksimal 10 detik jika server CCTV macet/freeze
+            # -reconnect 1 -reconnect_streamed 1 : Otomatis menyambung jika segmen .ts putus ditengah jalan
+            
             if [ -f "$LOGO_FILE" ]; then
               echo "Menemukan $LOGO_FILE, mengaktifkan overlay logo..."
-              ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
+              ffmpeg -re -user_agent "$FIXED_UA" -rw_timeout 10000000 \
+                -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+                -i "${{ github.event.inputs.m3u8_url }}" \
                 -i "$AUDIO_STREAM_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
                 -filter_complex "[2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
@@ -93,7 +97,9 @@ jobs:
                 -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
             else
               echo "Berjalan tanpa logo..."
-              ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
+              ffmpeg -re -user_agent "$FIXED_UA" -rw_timeout 10000000 \
+                -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+                -i "${{ github.event.inputs.m3u8_url }}" \
                 -i "$AUDIO_STREAM_URL" \
                 -map 0:v -map 1:a \
                 -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
@@ -102,7 +108,7 @@ jobs:
                 -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
             fi
 
-            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
+            echo "⚠️ Stream terputus atau koneksi CCTV terganggu. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
           
