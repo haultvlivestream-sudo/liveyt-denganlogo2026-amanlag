@@ -4,22 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       link_youtube:
-        description: 'Link Video Sumber'
-        required: true
-      kunci_rtmp:
-        description: 'Stream Key YouTube'
+        description: 'Masukkan Link Video YouTube'
         required: true
       waktu_mulai:
-        description: 'Waktu Mulai Potongan (Format: JJ:MM:DD / Contoh: 00:00:00)'
-        required: false
+        description: 'Waktu Mulai Potongan (Format: JJ:MM:DD)'
+        required: true
         default: '00:00:00'
       waktu_selesai:
-        description: 'Waktu Selesai Potongan (Format: JJ:MM:DD / Contoh: 00:00:30)'
-        required: false
-        default: 'inf' # Ketik 'inf' atau biarkan default jika ingin sampai video habis
+        description: 'Waktu Selesai Potongan (Format: JJ:MM:DD)'
+        required: true
+        default: '00:00:30'
 
 jobs:
-  streaming:
+  download_video:
     runs-on: ubuntu-latest
     steps:
       - name: 1. Checkout Repository
@@ -37,12 +34,10 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Jalankan Relay Streaming
+      - name: 4. Proses Download dan Potong Video
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          set +e
-
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
@@ -50,49 +45,29 @@ jobs:
             COOKIE_ARG=""
           fi
 
-          # Mengatur argumen pemotongan durasi berdasarkan input user
           START_TIME="${{ github.event.inputs.waktu_mulai }}"
           END_TIME="${{ github.event.inputs.waktu_selesai }}"
-          SECTION_ARG="--download-sections *${START_TIME}-${END_TIME}"
-
-          # KUNCI UTAMA: User-Agent & Client Android/Web Terupdate Juli 2026 untuk bypass throttling & 1080p
           FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
-          while true; do
-            echo "--- [$(date)] Mengambil Source Kualitas 1080p Terpilih ---"
-            
-            # Menjalankan yt-dlp dengan argumen pemotongan section
-            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
-                                $SECTION_ARG \
-                                --js-runtime node \
-                                --force-ipv4 \
-                                --no-cache-dir \
-                                --user-agent "$FIXED_UA" \
-                                --extractor-args "youtube:player-client=web,android" \
-                                -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best" \
-                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
+          echo "🚀 Memulai download potongan video..."
+          
+          # Mendownload langsung potongan video dalam resolusi 1080p dan menyimpannya menjadi file bernama 'hasil_potongan.mp4'
+          yt-dlp $COOKIE_ARG \
+            --js-runtime node \
+            --force-ipv4 \
+            --no-cache-dir \
+            --user-agent "$FIXED_UA" \
+            --extractor-args "youtube:player-client=web,android" \
+            -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best" \
+            --download-sections "*${START_TIME}-${END_TIME}" \
+            --force-keyframes-at-cuts \
+            -o "hasil_potongan.mp4" \
+            "${{ github.event.inputs.link_youtube }}"
 
-            if [ -z "$VIDEO_URL" ]; then
-              echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
-              echo "=== DETAIL ERROR DARI YT-DLP ==="
-              cat yt_error.log
-              echo "================================="
-              echo "Menunggu 10 detik sebelum mencoba kembali..."
-              sleep 10
-              continue
-            fi
-
-            echo "🚀 SUMBER 1080p DITEMUKAN! Memulai FFmpeg Encoding (TANPA LOGO)..."
-
-            # Menghapus sistem overlay logo dan langsung melakukan upscale/downscale ke 1920x1080 murni
-            ffmpeg -re -i "$VIDEO_URL" \
-              -vf "scale=1920:1080" \
-              -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
-              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -ar 44100 -b:a 128k \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
-
-            echo "⚠️ Stream selesai/terputus. Mengulang kembali dalam 10 detik..."
-            sleep 10
-          done
+      - name: 5. Upload Hasil Video Sebagai Link Download
+        uses: actions/upload-artifact@v4
+        with:
+          name: hasil-download-video
+          path: hasil_potongan.mp4
+          retention-days: 1
           
