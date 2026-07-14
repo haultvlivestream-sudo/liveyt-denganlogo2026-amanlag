@@ -35,11 +35,12 @@ jobs:
         run: |
           set +e
 
-          if [ -n "$YT_COOKIES" ]; then
+          # Menyiapkan file cookies jika ada
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
-            COOKIE_ARG="--cookies cookies.txt"
+            USE_COOKIE=true
           else
-            COOKIE_ARG=""
+            USE_COOKIE=false
           fi
           
           LOGO_FILE="logoihyajuni2026.mp4"
@@ -49,23 +50,39 @@ jobs:
             exit 1
           fi
 
+          # User-Agent Android Chrome yang umum di Kiwi Browser
+          USER_AGENT="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
-            
-            # PERBAIKAN 2026:
-            # 1. Menggunakan client 'android,web' (kombinasi terbaik saat ini untuk menembus IP block)
-            # 2. Menambahkan User-Agent Chrome Desktop asli untuk menyamarkan request dari GitHub Actions
-            # 3. Menggunakan format fallback super aman (jika video+audio HD gagal, ambil format gabungan langsung)
-            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
-                                --js-runtime node \
-                                --force-ipv4 \
-                                --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-                                --extractor-args "youtube:player-client=android,web" \
-                                -f "bestvideo+bestaudio/best" \
-                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
+            VIDEO_URL=""
 
+            # STRATEGI 1: Coba dengan Cookies (jika tersedia)
+            if [ "$USE_COOKIE" = true ]; then
+              echo "Mencoba mengambil URL menggunakan Cookies..."
+              VIDEO_URL=$(yt-dlp --cookies cookies.txt \
+                                  --js-runtime node \
+                                  --force-ipv4 \
+                                  --user-agent "$USER_AGENT" \
+                                  --extractor-args "youtube:player-client=android,web" \
+                                  -f "bestvideo+bestaudio/best" \
+                                  -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
+            fi
+
+            # STRATEGI 2: Fallback Tanpa Cookies (Jika strategi 1 gagal atau cookies tidak ada)
             if [ -z "$VIDEO_URL" ]; then
-              echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
+              echo "⚠️ Cookies gagal atau tidak digunakan. Mencoba bypass tanpa Cookies..."
+              VIDEO_URL=$(yt-dlp --js-runtime node \
+                                  --force-ipv4 \
+                                  --user-agent "$USER_AGENT" \
+                                  --extractor-args "youtube:player-client=android,web" \
+                                  -f "bestvideo+bestaudio/best" \
+                                  -g "${{ github.event.inputs.link_youtube }}" 2>>yt_error.log)
+            fi
+
+            # Evaluasi Akhir
+            if [ -z "$VIDEO_URL" ]; then
+              echo "❌ GAGAL TOTAL MENDAPATKAN URL VIDEO!"
               echo "=== DETAIL ERROR DARI YT-DLP ==="
               cat yt_error.log
               echo "================================="
