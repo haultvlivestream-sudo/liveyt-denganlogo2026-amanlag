@@ -1,4 +1,4 @@
-name: Live CCTV m3u8 Fix 2026 Tes
+name: Live CCTV m3u8 Fix 2026
 
 on:
   workflow_dispatch:
@@ -46,23 +46,22 @@ jobs:
             COOKIE_ARG=""
           fi
           
-          # Jika ada file logo opasional, cek di sini (Gunakan jika perlu, atau hapus jika tidak ada logo)
           LOGO_FILE="logoihyajuni2026.mp4"
 
-          # User-Agent Chrome Android asli untuk bypass deteksi bot YouTube terbaru
+          # [No 1] Penguncian User-Agent Manusia asli (Chrome Android)
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Mencari Link Audio YouTube via Sesi Android ---"
+            echo "--- [$(date)] Mencari Audio YouTube via Sesi Android Manusia ---"
             
-            # Mengambil hanya format AUDIO terbaik (-f ba) dari YouTube menggunakan taktik SCRIPT 2
+            # [No 2] Pembaruan Client ke android,web + Trik fallback format audio
             AUDIO_STREAM_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=android,web" \
-                                -f "ba/bestaudio" \
+                                -f "ba/worstvideo+bestaudio/best" \
                                 -g "${{ github.event.inputs.audio_url }}" 2>yt_error.log)
 
             if [ -z "$AUDIO_STREAM_URL" ]; then
@@ -75,19 +74,20 @@ jobs:
               continue
             fi
 
-            echo "🚀 LINK AUDIO DITEMUKAN! Memulai FFmpeg menggabungkan CCTV Video + Audio..."
+            echo "🚀 LINK AUDIO BERHASIL DI-BYPASS!"
+            echo "Memulai penggabungan CCTV (M3U8) + Audio YouTube..."
 
-            # Menjalankan FFmpeg: 
-            # Input 0: Link CCTV M3U8 (Hanya ambil video: -map 0:v)
-            # Input 1: Link Audio YouTube (Hanya ambil audio: -map 1:a)
+            # [No 3] Memastikan TIDAK ADA parameter :shortest=1 pada overlay logo
+            # [No 4] Upgrade Preset CPU ke superfast
+            # [No 5] Penurunan Batas Maksimal Bitrate & Buffer (-maxrate 8000k -bufsize 12000k)
             if [ -f "$LOGO_FILE" ]; then
               echo "Menemukan $LOGO_FILE, mengaktifkan overlay logo..."
               ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
                 -i "$AUDIO_STREAM_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
                 -filter_complex "[2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
-                -map "[v]" -map 1:a \
-                -c:v libx264 -preset superfast -b:v 4000k -maxrate 6000k -bufsize 8000k \
+                -map 0:v -map 1:a \
+                -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
                 -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
                 -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
@@ -96,13 +96,13 @@ jobs:
               ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
                 -i "$AUDIO_STREAM_URL" \
                 -map 0:v -map 1:a \
-                -c:v libx264 -preset superfast -b:v 4000k -maxrate 6000k -bufsize 8000k \
+                -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
                 -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
                 -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
             fi
 
-            echo "⚠️ Stream terputus atau link expired. Mengulang kembali dalam 10 detik..."
+            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
           
