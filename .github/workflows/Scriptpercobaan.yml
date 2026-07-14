@@ -79,10 +79,9 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV dan Audio..."
 
-            # 2. Perbaikan Utama FFmpeg: 
-            # - Memaksa video CCTV [0:v] ke aspek rasio 16:9 (1280x720) dengan padding hitam otomatis
-            # - Memperbesar ukuran logo [2:v] menjadi 22% dari lebar video utama (1280 * 0.22)
-            # - Mengamankan koneksi CCTV dengan headers & reconnect otomatis
+            # 2. Perbaikan FFmpeg Pas:
+            # - Video langsung ditarik (stretch) ke 1280x720 tanpa bar hitam kanan-kiri
+            # - Ukuran logo diperkecil dan pas menjadi 17% dari lebar layar utama
             ffmpeg -headers "User-Agent: $FIXED_UA" \
               -live_start_index -1 \
               -reconnect 1 \
@@ -93,7 +92,7 @@ jobs:
               -re -i "${{ github.event.inputs.m3u8_url }}" \
               -re -i "$AUDIO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.22:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
+              -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.17:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
               -map "[v_out]" \
               -map 1:a \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
