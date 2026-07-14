@@ -1,4 +1,4 @@
-name: Live CCTV m3u8 Fix 2026 TES
+name: Live CCTV m3u8 Fix 2026
 
 on:
   workflow_dispatch:
@@ -27,7 +27,9 @@ jobs:
 
       - name: 3. Install Tools (FFmpeg & yt-dlp Nightly)
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo apt-get update
+          # Ditambahkan --no-install-recommends agar install FFmpeg super cepat & anti-gagal/putus
+          sudo apt-get install -y --no-install-recommends ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
@@ -51,7 +53,7 @@ jobs:
             exit 1
           fi
 
-          # 1. User-Agent Manusia untuk bypass blokir server CCTV & YouTube
+          # User-Agent Manusia untuk bypass blokir server CCTV & YouTube
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
@@ -78,7 +80,7 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV dan Audio..."
 
-            # 2. Perbaikan FFmpeg: Menambahkan headers penyamaran & parameter anti-disconnect m3u8
+            # Mengamankan link CCTV dengan header User-Agent manusia & fitur reconnect otomatis jika cctv buffering
             ffmpeg -headers "User-Agent: $FIXED_UA" \
               -live_start_index -1 \
               -reconnect 1 \
