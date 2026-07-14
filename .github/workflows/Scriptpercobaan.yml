@@ -81,7 +81,7 @@ jobs:
 
             # 2. Perbaikan FFmpeg Pas:
             # - Video langsung ditarik (stretch) ke 1280x720 tanpa bar hitam kanan-kiri
-            # - Ukuran logo diperkecil dan pas menjadi 17% dari lebar layar utama
+            # - Ukuran logo diperkecil sedikit lagi menjadi 13.5% agar pas dan tidak mengganggu
             ffmpeg -headers "User-Agent: $FIXED_UA" \
               -live_start_index -1 \
               -reconnect 1 \
@@ -92,7 +92,7 @@ jobs:
               -re -i "${{ github.event.inputs.m3u8_url }}" \
               -re -i "$AUDIO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.17:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
+              -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.135:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
               -map "[v_out]" \
               -map 1:a \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
