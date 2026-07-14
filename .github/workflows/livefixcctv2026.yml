@@ -1,4 +1,4 @@
-name: Live CCTV m3u8 Fix 2026
+name: Live CCTV m3u8 Fix Juli 2026
 
 on:
   workflow_dispatch:
@@ -27,7 +27,8 @@ jobs:
 
       - name: 3. Install Tools (FFmpeg & yt-dlp Nightly)
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
@@ -36,64 +37,70 @@ jobs:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           set +e
-          echo "$YT_COOKIES" > cookies.txt
+
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
           
-          LOGO_FILE="logoihya2026.mp4"
+          LOGO_FILE="logoihyajuni2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
             exit 1
           fi
-          
+
+          # 1. User-Agent Manusia untuk bypass blokir server CCTV & YouTube
+          FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
           while true; do
-            echo "--- [$(date)] Mengambil Direct Link Audio YouTube ---"
+            echo "--- [$(date)] Mencari Kualitas Audio YouTube via Sesi Android ---"
             
-            AUDIO_STREAM=$(yt-dlp --cookies cookies.txt \
-                               --js-runtime node \
-                               --force-ipv4 \
-                               --no-playlist \
-                               --extractor-args "youtube:player_client=mweb,web" \
-                               -f "bestaudio/best" \
-                               -g "${{ github.event.inputs.audio_url }}" 2>/dev/null)
+            AUDIO_URL=$(yt-dlp $COOKIE_ARG \
+                                --js-runtime node \
+                                --force-ipv4 \
+                                --no-cache-dir \
+                                --user-agent "$FIXED_UA" \
+                                --extractor-args "youtube:player-client=android,web" \
+                                -f "bestaudio/best" \
+                                -g "${{ github.event.inputs.audio_url }}" 2>yt_error.log)
 
-            if [ -z "$AUDIO_STREAM" ]; then
-              echo "Gagal ambil URL Audio. Mencoba tanpa extractor-args..."
-              AUDIO_STREAM=$(yt-dlp --cookies cookies.txt --js-runtime node -f "bestaudio" -g "${{ github.event.inputs.audio_url }}" 2>/dev/null)
-            fi
-
-            if [ -z "$AUDIO_STREAM" ]; then
-              echo "CRITICAL ERROR: Gagal ambil audio. Cek Cookies!"
+            if [ -z "$AUDIO_URL" ]; then
+              echo "❌ GAGAL MENDAPATKAN URL AUDIO YOUTUBE!"
+              echo "=== DETAIL ERROR DARI YT-DLP ==="
+              cat yt_error.log
+              echo "================================="
+              echo "Menunggu 10 detik sebelum mencoba kembali..."
               sleep 10
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Menjalankan Trik Buffer Video..."
-            ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" -c copy -f mpegts udp://127.0.0.1:8080?pkt_size=1316 &
-            
-            sleep 3
+            echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV dan Audio..."
 
-            echo "Memulai Pemrosesan Logo & Tarik Paksa Video ke 16:9..."
-            
-            # PERUBAHAN UTAMA:
-            # [0:v]scale=1920:1080 -> Menarik paksa video CCTV (skala melar) menjadi Full HD 16:9 penuh layar.
-            # Ukuran logo tetap dikunci 12% dari lebar layar utama (1920px), jadi ukurannya ideal dan tidak besar lagi.
-            
-            ffmpeg -re -i "udp://127.0.0.1:8080" \
-              -re -i "$AUDIO_STREAM" \
+            # 2. Perbaikan FFmpeg Pas:
+            # - Video langsung ditarik (stretch) ke 1280x720 tanpa bar hitam kanan-kiri
+            # - Ukuran logo diperkecil sedikit lagi menjadi 13.5% agar pas dan tidak mengganggu
+            ffmpeg -headers "User-Agent: $FIXED_UA" \
+              -live_start_index -1 \
+              -reconnect 1 \
+              -reconnect_at_eof 1 \
+              -reconnect_streamed 1 \
+              -reconnect_delay_max 5 \
+              -fflags +genpts+discardcorrupt \
+              -re -i "${{ github.event.inputs.m3u8_url }}" \
+              -re -i "$AUDIO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex \
-              "[0:v]scale=1920:1080[cctv_widescreen]; \
-               [2:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
-               [cctv_widescreen][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
-              -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
+              -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.115:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
+              -map "[v_out]" \
+              -map 1:a \
+              -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
-              -map "[v_out]" -map 1:a:0 \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus atau selesai. Mengulang dalam 5 detik..."
-            killall ffmpeg 2>/dev/null
-            sleep 5
+            echo "⚠️ Koneksi CCTV terputus atau buffer habis. Mengulang dalam 10 detik..."
+            sleep 10
           done
           
-
