@@ -41,12 +41,9 @@ jobs:
           START_TIME="${{ github.event.inputs.waktu_mulai }}"
           END_TIME="${{ github.event.inputs.waktu_selesai }}"
           
-          # [No 1] Penguncian User-Agent Manusia (Bypass Googlebot Detection)
+          # [No 1] Penguncian User-Agent Manusia
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
           
-          echo "🚀 Mencoba mendownload potongan video dengan identitas manusia..."
-
-          # Menyiapkan Cookie jika tersedia
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
@@ -54,39 +51,25 @@ jobs:
             COOKIE_ARG=""
           fi
 
-          # Mengambil URL stream video & audio secara terpisah menggunakan yt-dlp
-          # [No 2] Menggunakan client android dan web agar pembacaan cookies sukses
-          VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+          echo "🚀 Memulai download dan pemotongan video secara Direct..."
+
+          # Menjalankan pemotongan langsung lewat yt-dlp menggunakan argumen internal ffmpeg
+          # [No 2] Menggunakan extractor android,web agar bypass sukses
+          # [No 4 & 5] Konfigurasi kualitas dioperasikan langsung melalui --downloader-args
+          yt-dlp $COOKIE_ARG \
             --js-runtime deno \
             --remote-components ejs:github \
             --force-ipv4 \
             --no-cache-dir \
             --user-agent "$FIXED_UA" \
             --extractor-args "youtube:player-client=android,web" \
-            -f "bestvideo[height<=1080][ext=mp4]/bestvideo[height<=1080]+bestaudio/best" \
+            -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best" \
             --download-sections "*${START_TIME}-${END_TIME}" \
             --force-keyframes-at-cuts \
-            -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
-
-          if [ -z "$VIDEO_URL" ]; then
-            echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
-            cat yt_error.log
-            exit 1
-          fi
-
-          echo "🚀 URL Berhasil didapatkan! Memulai proses rendering akhir dengan FFmpeg..."
-
-          # Memproses potongan video dengan standar regulasi FFmpeg Anda yang baru:
-          # - Tanpa logo overlay, gambar murni bersih 1080p
-          # - [No 3] Tidak menggunakan parameter ':shortest=1' agar proses download stabil dan tidak patah
-          # - [No 4] Menggunakan preset 'superfast' untuk kualitas gambar padat/anti kotak-kotak
-          # - [No 5] Membatasi bitrate maksimal ke 8000k dan buffer 12000k untuk stabilitas data
-          ffmpeg -i "$VIDEO_URL" \
-            -vf "scale=1920:1080" \
-            -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
-            -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-            -c:a aac -ar 44100 -b:a 128k \
-            "hasil_potongan.mp4"
+            --downloader ffmpeg \
+            --downloader-args "ffmpeg:-vf scale=1920:1080 -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 -c:a aac -ar 44100 -b:a 128k" \
+            -o "hasil_potongan.mp4" \
+            "${{ github.event.inputs.link_youtube }}"
 
       - name: 5. Upload Hasil Video Sebagai Link Download
         uses: actions/upload-artifact@v4
