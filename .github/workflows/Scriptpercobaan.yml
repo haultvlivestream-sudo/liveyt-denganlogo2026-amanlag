@@ -1,4 +1,4 @@
-name: Live CCTV m3u8 Fix 2026
+name: Live CCTV m3u8 Fix 2026 TES
 
 on:
   workflow_dispatch:
@@ -51,13 +51,12 @@ jobs:
             exit 1
           fi
 
-          # No 1. Penguncian User-Agent Manusia (FIXED_UA)
+          # 1. User-Agent Manusia untuk bypass blokir server CCTV & YouTube
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Mencari Kualitas Audio Tertinggi via Sesi Android Manusia ---"
+            echo "--- [$(date)] Mencari Kualitas Audio YouTube via Sesi Android ---"
             
-            # No 2. Pembaruan Client ke android,web untuk mengekstrak Audio YouTube
             AUDIO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
@@ -77,11 +76,17 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg (Video CCTV + Audio YouTube + Logo)..."
+            echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV dan Audio..."
 
-            # No 3. Penghapusan Parameter :shortest=1 pada filter_complex
-            # No 4 & 5. Upgrade Preset ke superfast & Penurunan Batas Bitrate/Buffer
-            ffmpeg -re -i "${{ github.event.inputs.m3u8_url }}" \
+            # 2. Perbaikan FFmpeg: Menambahkan headers penyamaran & parameter anti-disconnect m3u8
+            ffmpeg -headers "User-Agent: $FIXED_UA" \
+              -live_start_index -1 \
+              -reconnect 1 \
+              -reconnect_at_eof 1 \
+              -reconnect_streamed 1 \
+              -reconnect_delay_max 5 \
+              -fflags +genpts+discardcorrupt \
+              -re -i "${{ github.event.inputs.m3u8_url }}" \
               -re -i "$AUDIO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
@@ -92,7 +97,7 @@ jobs:
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
+            echo "⚠️ Koneksi CCTV terputus atau buffer habis. Mengulang dalam 10 detik..."
             sleep 10
           done
           
