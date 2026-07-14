@@ -52,12 +52,15 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
             
-            # PERBAIKAN UTAMA: Menggunakan client 'web,tv' yang mendukung cookies secara penuh
-            # Serta melonggarkan filter format (-f) agar jika mp4 murni tidak ada, format terbaik lain tetap diambil
+            # PERBAIKAN 2026:
+            # 1. Menggunakan client 'android,web' (kombinasi terbaik saat ini untuk menembus IP block)
+            # 2. Menambahkan User-Agent Chrome Desktop asli untuk menyamarkan request dari GitHub Actions
+            # 3. Menggunakan format fallback super aman (jika video+audio HD gagal, ambil format gabungan langsung)
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
-                                --extractor-args "youtube:player-client=web,tv" \
+                                --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+                                --extractor-args "youtube:player-client=android,web" \
                                 -f "bestvideo+bestaudio/best" \
                                 -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
