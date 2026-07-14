@@ -52,7 +52,7 @@ jobs:
             exit 1
           fi
 
-          # 1. User-Agent Manusia untuk bypass blokir server CCTV & YouTube
+          # User-Agent Manusia untuk bypass blokir server CCTV & YouTube
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
@@ -79,9 +79,9 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV dan Audio..."
 
-            # 2. Perbaikan Utama FFmpeg: 
-            # - Mengamankan koneksi CCTV dengan headers & reconnect otomatis
-            # - Mengunci output video gabungan ke [v_out] agar FLV hanya menerima tepat 1 aliran video
+            # PERBAIKAN FILTER:
+            # 1. [0:v]scale=1920:1080[main_v] -> CCTV dipaksa ke format 16:9 Full HD
+            # 2. scale=iw*0.08:-1 -> Logo dikecilkan menjadi 8% agar tidak kebesaran
             ffmpeg -headers "User-Agent: $FIXED_UA" \
               -live_start_index -1 \
               -reconnect 1 \
@@ -92,7 +92,7 @@ jobs:
               -re -i "${{ github.event.inputs.m3u8_url }}" \
               -re -i "$AUDIO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
+              -filter_complex "[0:v]scale=1920:1080[main_v]; [2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.08:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[v_out]" \
               -map "[v_out]" \
               -map 1:a \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
