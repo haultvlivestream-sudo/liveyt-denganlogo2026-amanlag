@@ -1,4 +1,4 @@
-name: Live Streaming Fix 2026 | Resolusi Tertinggi AKUN Google 
+name: Live PERCOBAAN Streaming Fix 2026 | Resolusi Tertinggi
 
 on:
   workflow_dispatch:
@@ -30,8 +30,16 @@ jobs:
           yt-dlp -U
 
       - name: 4. Jalankan Relay Streaming
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          set +e
+          # Menyimpan cookies jika tersedia
+          if [ -n "$YT_COOKIES" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
           
           # Memastikan file logo ada (Nama file: logoihyajuni2026.mp4)
           LOGO_FILE="logoihyajuni2026.mp4"
@@ -44,36 +52,37 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
             
-            # LOGIN MENGGUNAKAN EMAIL DAN PASSWORD SECARA LANGSUNG
-            # Menggunakan argumen --username dan --password bawaan yt-dlp
-            VIDEO_URL=$(yt-dlp --username "ihya7tv@gmail.com" \
-                               --password "SAID786786" \
-                               --js-runtime node \
-                               --force-ipv4 \
-                               -f "bestvideo+bestaudio/best" \
-                               -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+            # Ditambahkan opsi extractor-args untuk meniru client Android VR / IOS guna meminimalisir bot-detection
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                --js-runtime node \
+                                --force-ipv4 \
+                                --extractor-args "youtube:player-client=ios,android_vr" \
+                                -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+                                -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "Gagal ambil URL. Cek Login atau Link!"
-              echo "Catatan: Jika gagal, Google mungkin memblokir IP server GitHub Actions karena deteksi bot."
-              sleep 5
+              echo "Gagal mengambil URL video. Menunggu 10 detik sebelum mencoba kembali..."
+              sleep 10
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
+            echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # LOGIKA UTAMA 2026:
-            # 1. Logo (1:v) dibuat 14% dari lebar video utama (iw*0.14).
-            # 2. Chroma key diatur ke #006900.
+            # FILTER & ENCODING OPTIMIZATION:
+            # 1. Mengubah preset ke 'superfast' atau 'veryfast' agar kompresi bit lebih stabil di jaringan GitHub.
+            # 2. Mengatur ukuran buffer FFmpeg agar lebih bersahabat dengan koneksi RTMP.
+            # 3. Menghapus shortest=1 di overlay karena logo menggunakan loop tanpa akhir (-stream_loop -1) 
+            #    dan menggunakan spesifikasi penanganan stream input utama ([0:v]) sebagai acuan durasi utama.
 
             ffmpeg -re -i "$VIDEO_URL" \
-                   -stream_loop -1 -i "$LOGO_FILE" \
-                   -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
-                   -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
-                   -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-                   -c:a aac -ar 44100 -b:a 128k \
-                   -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+              -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
+              -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -ar 44100 -b:a 128k \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus. Mengulang dalam 5 detik..."
-            sleep 5
+            echo "Stream terputus atau FFmpeg berhenti. Mengulang kembali dalam 10 detik..."
+            sleep 10
           done
+          
