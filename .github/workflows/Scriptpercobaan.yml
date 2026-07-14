@@ -54,14 +54,14 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Audio YouTube via Sesi Android Manusia ---"
             
-            # [No 2] Pembaruan Client ke android,web + Fallback format audio
+            # [PERBAIKAN] Mengunci format kode 140 (m4a audio) / 251 (webm audio) agar output -g hanya 1 baris URL audio bersih
             AUDIO_STREAM_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=android,web" \
-                                -f "ba/worstvideo+bestaudio/best" \
+                                -f "140/251/ba/bestaudio" \
                                 -g "${{ github.event.inputs.audio_url }}" 2>yt_error.log)
 
             if [ -z "$AUDIO_STREAM_URL" ]; then
@@ -76,11 +76,6 @@ jobs:
 
             echo "🚀 LINK AUDIO BERHASIL DI-BYPASS!"
             echo "Memulai penggabungan CCTV (M3U8) + Audio YouTube..."
-
-            # ANTISIPASI TIMEOUT & BLOKIR IP CCTV:
-            # -user_agent : Menyamarkan FFmpeg sebagai browser agar tidak diblokir server CCTV
-            # -rw_timeout 10000000 : Timeout maksimal 10 detik jika server CCTV macet/freeze
-            # -reconnect 1 -reconnect_streamed 1 : Otomatis menyambung jika segmen .ts putus ditengah jalan
             
             if [ -f "$LOGO_FILE" ]; then
               echo "Menemukan $LOGO_FILE, mengaktifkan overlay logo..."
