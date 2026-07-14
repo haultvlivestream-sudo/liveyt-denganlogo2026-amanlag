@@ -22,7 +22,7 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Install Deno (JS Solver)
+      - name: 2. Install Deno (JS Solver Wajib untuk Android/Web Client 2026)
         uses: denoland/setup-deno@v2
         with:
           deno-version: v1.x
@@ -41,7 +41,7 @@ jobs:
           START_TIME="${{ github.event.inputs.waktu_mulai }}"
           END_TIME="${{ github.event.inputs.waktu_selesai }}"
           
-          # [No 1] Penguncian User-Agent Manusia
+          # [No 1] Penguncian User-Agent Manusia (Chrome Android Asli)
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
           
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
@@ -51,11 +51,13 @@ jobs:
             COOKIE_ARG=""
           fi
 
-          echo "🚀 Memulai download dan pemotongan video secara Direct..."
+          echo "🚀 Memulai download dan pemotongan video..."
 
-          # Menjalankan pemotongan langsung lewat yt-dlp menggunakan argumen internal ffmpeg
-          # [No 2] Menggunakan extractor android,web agar bypass sukses
-          # [No 4 & 5] Konfigurasi kualitas dioperasikan langsung melalui --downloader-args
+          # Menjalankan download dengan 5 Poin Optimasi Anda:
+          # - [No 1] User-Agent Chrome Android Manusia
+          # - [No 2] Client dibatasi ke 'android,web' agar sukses membaca cookies Anda
+          # - [No 3] Parameter ':shortest=1' tidak ada di dalam konversi FFmpeg
+          # - [No 4 & 5] Parameter FFmpeg ditaruh langsung di downloader-args
           yt-dlp $COOKIE_ARG \
             --js-runtime deno \
             --remote-components ejs:github \
@@ -63,7 +65,7 @@ jobs:
             --no-cache-dir \
             --user-agent "$FIXED_UA" \
             --extractor-args "youtube:player-client=android,web" \
-            -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best" \
+            -f "bestvideo[height<=1080]+bestaudio/best" \
             --download-sections "*${START_TIME}-${END_TIME}" \
             --force-keyframes-at-cuts \
             --downloader ffmpeg \
