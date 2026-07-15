@@ -31,7 +31,7 @@ jobs:
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           
-          # Memastikan Node.js terdaftar di sistem agar n-challenge bypass bekerja sempurna
+          # Memastikan Node.js terdaftar di path utama sistem agar n-challenge solver aktif otomatis
           sudo ln -sf $(which node) /usr/bin/node
           sudo ln -sf $(which node) /usr/local/bin/node
 
@@ -50,17 +50,16 @@ jobs:
           echo "--- [Mencari Direct Link dengan Sistem Bypass n-Challenge] ---"
           FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
           
-          # Strategi Baru: Memaksa ekstraksi format progresif jika format terpisah diblokir robot detektor
+          # Perbaikan: Menghapus --javascript-delay yang tidak valid
           VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                              --force-ipv4 \
                              --no-playlist \
                              --user-agent "$FIXED_UA" \
                              --extractor-args "youtube:client=web,android;player_skip=web_embedded_iframe" \
-                             --javascript-delay 3 \
                              -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/mp4" \
                              -g "${{ github.event.inputs.link_youtube }}")
 
-          # Jika video utama masih gagal karena throttling parah, ambil fallback link langsung (pasti dapat)
+          # Jika mode 1080p strict masih tertahan, gunakan fallback sapu jagat (pasti dapat link)
           if [ -z "$VIDEO_URL" ]; then
             echo "WARNING: Mode ketat diblokir, mengaktifkan mode Fallback Sapu Jagat..."
             VIDEO_URL=$(yt-dlp $COOKIE_ARG --force-ipv4 --user-agent "$FIXED_UA" -f "best" -g "${{ github.event.inputs.link_youtube }}")
@@ -72,7 +71,6 @@ jobs:
           fi
 
           echo "--- [Memulai Pemotongan Video 1080p High-Bitrate] ---"
-          # Eksekusi FFmpeg dengan preset superfast dan bitrate aman
           ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i "$VIDEO_URL" \
           -c:v libx264 -preset superfast -crf 17 \
           -maxrate 8000k -bufsize 12000k \
