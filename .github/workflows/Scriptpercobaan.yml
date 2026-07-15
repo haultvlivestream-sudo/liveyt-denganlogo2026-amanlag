@@ -20,7 +20,7 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Setup Python (Wajib untuk Solusi Ini)
+      - name: 2. Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
@@ -28,11 +28,10 @@ jobs:
       - name: 3. Install Tools & Dependensi Anti-Bot
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl bc
-          # Install yt-dlp via PIP agar dependensi internal Python-nya jauh lebih matang mendeteksi format
           python -m pip install --upgrade pip
           pip install --upgrade yt-dlp
 
-      - name: 4. Eksekusi Potong Video (Taktik Sapu Jagat Kebal Blokir)
+      - name: 4. Eksekusi Potong Video
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -43,11 +42,9 @@ jobs:
             COOKIE_ARG=""
           fi
           
-          echo "--- [Mengekstrak dengan Taktik Bypass Format Warisan] ---"
+          echo "--- Mengunduh Video ---"
           FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
           
-          # Trik Utama: Menggunakan format "30m/18/22/best" (Format gabungan mp4 bawaan YouTube yang bebas dari n-challenge throttling)
-          # Dan menambahkan flag toleransi --ignore-errors agar skrip tidak langsung mati saat handshake awal
           yt-dlp $COOKIE_ARG \
             --force-ipv4 \
             --no-playlist \
@@ -60,20 +57,18 @@ jobs:
             -o "mentah_potong.mp4" \
             "${{ github.event.inputs.link_youtube }}" || true
 
-          # Cek apakah file berhasil diunduh
           FILE_MENTAH="mentah_potong.mp4"
           if [ ! -f "$FILE_MENTAH" ] || [ ! -s "$FILE_MENTAH" ]; then
-             echo "WARNING: Format standar diblokir, mencoba ambil jalur darurat..."
+             echo "--- Jalur Cadangan Aktif ---"
              yt-dlp $COOKIE_ARG --force-ipv4 --user-agent "$FIXED_UA" -f "best" --download-sections "*${{ github.event.inputs.mulai }}-${{ github.event.inputs.selesai }}" -o "mentah_potong.mp4" "${{ github.event.inputs.link_youtube }}" || true
           fi
 
           if [ ! -f "$FILE_MENTAH" ] || [ ! -s "$FILE_MENTAH" ]; then
-            echo "ERROR: YouTube memblokir total IP Runner ini secara permanen. Silakan coba perbarui YT_COOKIES Anda."
+            echo "ERROR: Gagal download"
             exit 1
           fi
 
-          echo "--- [Menerapkan Standar Kualitas 1080p High-Bitrate] ---"
-          # FFmpeg akan memaksa upscale kembali ke kualitas tajam 1080p dengan setelan bitrate Anda
+          echo "--- Memproses Kualitas Video ---"
           ffmpeg -i "$FILE_MENTAH" \
           -c:v libx264 -preset superfast -crf 17 \
           -maxrate 8000k -bufsize 12000k \
