@@ -8,10 +8,10 @@ on:
         required: true
       mulai:
         description: 'Mulai (Jam:Menit:Detik)'
-        default: '00:06:10'
+        default: '00:00:10'
       selesai:
         description: 'Selesai (Jam:Menit:Detik)'
-        default: '00:06:40'
+        default: '00:00:40'
 
 jobs:
   proses_editing:
@@ -25,16 +25,17 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 3. Install Tools (High Efficiency)
+      - name: 3. Install Tools & Pemicu Solver JavaScript
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl bc
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           
-          # SOLUSI n-challenge: Hubungkan Node.js ke path global agar terdeteksi oleh yt-dlp
-          sudo ln -s $(which node) /usr/local/bin/node || true
+          # Memastikan Node.js terdaftar di sistem agar n-challenge bypass bekerja sempurna
+          sudo ln -sf $(which node) /usr/bin/node
+          sudo ln -sf $(which node) /usr/local/bin/node
 
-      - name: 4. Eksekusi Potong Video (1080p Best Quality)
+      - name: 4. Eksekusi Potong Video (Bypass Ketat & Kebal Error)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -46,29 +47,32 @@ jobs:
             COOKIE_ARG=""
           fi
           
-          echo "--- [Mencari Direct Link 1080p dengan Identitas Manusia] ---"
-          # No 1. Penguncian User-Agent Manusia (FIXED_UA)
-          FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          echo "--- [Mencari Direct Link dengan Sistem Bypass n-Challenge] ---"
+          FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
           
-          # No 2. Pembaruan Client ke android,web dengan Fallback Selector Format
+          # Strategi Baru: Memaksa ekstraksi format progresif jika format terpisah diblokir robot detektor
           VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                              --force-ipv4 \
                              --no-playlist \
                              --user-agent "$FIXED_UA" \
-                             --extractor-args "youtube:client=android,web" \
-                             -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best" \
+                             --extractor-args "youtube:client=web,android;player_skip=web_embedded_iframe" \
+                             --javascript-delay 3 \
+                             -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/mp4" \
                              -g "${{ github.event.inputs.link_youtube }}")
 
+          # Jika video utama masih gagal karena throttling parah, ambil fallback link langsung (pasti dapat)
           if [ -z "$VIDEO_URL" ]; then
-            echo "ERROR: Gagal mendapatkan URL Video. Cek ketersediaan video atau YT_COOKIES!"
+            echo "WARNING: Mode ketat diblokir, mengaktifkan mode Fallback Sapu Jagat..."
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG --force-ipv4 --user-agent "$FIXED_UA" -f "best" -g "${{ github.event.inputs.link_youtube }}")
+          fi
+
+          if [ -z "$VIDEO_URL" ]; then
+            echo "ERROR: YouTube benar-benar memblokir IP Runner ini. Cek kembali link atau cookies Anda."
             exit 1
           fi
 
           echo "--- [Memulai Pemotongan Video 1080p High-Bitrate] ---"
-          # No 3. Pengaturan tanpa ':shortest=1' (Mencegah crash buffering)
-          # No 4. Upgrade Preset CPU ke 'superfast'
-          # No 5. Penurunan Batas Maksimal Bitrate & Buffer (8000k / 12000k)
-          
+          # Eksekusi FFmpeg dengan preset superfast dan bitrate aman
           ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i "$VIDEO_URL" \
           -c:v libx264 -preset superfast -crf 17 \
           -maxrate 8000k -bufsize 12000k \
