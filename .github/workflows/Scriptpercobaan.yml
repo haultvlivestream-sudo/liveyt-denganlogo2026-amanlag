@@ -20,26 +20,16 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: 3. Install Tools & Pemicu Solver JavaScript
+      - name: 2. Install Tools (High Efficiency)
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl bc
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          
-          # Memastikan Node.js terdaftar di path utama sistem agar n-challenge solver aktif otomatis
-          sudo ln -sf $(which node) /usr/bin/node
-          sudo ln -sf $(which node) /usr/local/bin/node
 
-      - name: 4. Eksekusi Potong Video (Bypass Ketat & Kebal Error)
+      - name: 3. Eksekusi Potong Video Langsung (Anti Bot & Kebal n-Challenge)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          # Simpan cookies jika ada
           if [ -n "$YT_COOKIES" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
@@ -47,37 +37,39 @@ jobs:
             COOKIE_ARG=""
           fi
           
-          echo "--- [Mencari Direct Link dengan Sistem Bypass n-Challenge] ---"
+          echo "--- [Mengunduh & Memotong Video via Internal yt-dlp Sections] ---"
           FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
           
-          # Perbaikan: Menghapus --javascript-delay yang tidak valid
-          VIDEO_URL=$(yt-dlp $COOKIE_ARG \
-                             --force-ipv4 \
-                             --no-playlist \
-                             --user-agent "$FIXED_UA" \
-                             --extractor-args "youtube:client=web,android;player_skip=web_embedded_iframe" \
-                             -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/mp4" \
-                             -g "${{ github.event.inputs.link_youtube }}")
+          # Menggunakan parameter internal yt-dlp untuk memotong segmen tanpa membedah link mentah via FFmpeg luar
+          # Ini memotong langsung saat download sehingga jauh lebih aman dari block IP
+          yt-dlp $COOKIE_ARG \
+            --force-ipv4 \
+            --no-playlist \
+            --user-agent "$FIXED_UA" \
+            --extractor-args "youtube:client=android,web" \
+            --download-sections "*${{ github.event.inputs.mulai }}-${{ github.event.inputs.selesai }}" \
+            -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]/best" \
+            --force-keyframes-at-cuts \
+            -o "mentah_potong.%(ext)s" \
+            "${{ github.event.inputs.link_youtube }}"
 
-          # Jika mode 1080p strict masih tertahan, gunakan fallback sapu jagat (pasti dapat link)
-          if [ -z "$VIDEO_URL" ]; then
-            echo "WARNING: Mode ketat diblokir, mengaktifkan mode Fallback Sapu Jagat..."
-            VIDEO_URL=$(yt-dlp $COOKIE_ARG --force-ipv4 --user-agent "$FIXED_UA" -f "best" -g "${{ github.event.inputs.link_youtube }}")
-          fi
-
-          if [ -z "$VIDEO_URL" ]; then
-            echo "ERROR: YouTube benar-benar memblokir IP Runner ini. Cek kembali link atau cookies Anda."
+          # Memastikan file hasil download ada sebelum di-re-encode dengan FFmpeg standar Anda
+          FILE_MENTAH=$(ls mentah_potong.* | head -n 1)
+          
+          if [ -z "$FILE_MENTAH" ] || [ ! -f "$FILE_MENTAH" ]; then
+            echo "ERROR: File video gagal diunduh. Cek ketersediaan video atau YT_COOKIES."
             exit 1
           fi
 
-          echo "--- [Memulai Pemotongan Video 1080p High-Bitrate] ---"
-          ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i "$VIDEO_URL" \
+          echo "--- [Memulai Standardisasi Kualitas 1080p High-Bitrate] ---"
+          # Menerapkan parameter Pro Anda (CRF 17, Superfast, Maxrate 8000k) ke hasil potongan awal
+          ffmpeg -i "$FILE_MENTAH" \
           -c:v libx264 -preset superfast -crf 17 \
           -maxrate 8000k -bufsize 12000k \
           -c:a aac -b:a 320k -movflags +faststart \
           hasil_1080p_jernih.mp4
 
-      - name: 5. Upload Hasil Video
+      - name: 4. Upload Hasil Video
         uses: actions/upload-artifact@v4
         with:
           name: video-potong-1080p
