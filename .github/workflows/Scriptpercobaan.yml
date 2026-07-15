@@ -8,10 +8,10 @@ on:
         required: true
       mulai:
         description: 'Mulai (Jam:Menit:Detik)'
-        default: '00:00:10'
+        default: '00:06:10'
       selesai:
         description: 'Selesai (Jam:Menit:Detik)'
-        default: '00:00:40'
+        default: '00:06:40'
 
 jobs:
   proses_editing:
@@ -30,6 +30,9 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl bc
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
+          
+          # SOLUSI n-challenge: Hubungkan Node.js ke path global agar terdeteksi oleh yt-dlp
+          sudo ln -s $(which node) /usr/local/bin/node || true
 
       - name: 4. Eksekusi Potong Video (1080p Best Quality)
         env:
@@ -45,30 +48,26 @@ jobs:
           
           echo "--- [Mencari Direct Link 1080p dengan Identitas Manusia] ---"
           # No 1. Penguncian User-Agent Manusia (FIXED_UA)
-          FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+          FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
           
-          # No 2. Pembaruan Client ke android,web & Penerapan UA
-          # Memastikan pengambilan 1080p terbaik dengan stabilitas ekstra
+          # No 2. Pembaruan Client ke android,web dengan Fallback Selector Format
           VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                              --force-ipv4 \
                              --no-playlist \
                              --user-agent "$FIXED_UA" \
                              --extractor-args "youtube:client=android,web" \
-                             -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+                             -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best" \
                              -g "${{ github.event.inputs.link_youtube }}")
 
           if [ -z "$VIDEO_URL" ]; then
-            echo "ERROR: Gagal mendapatkan URL 1080p. Cek ketersediaan video atau YT_COOKIES!"
+            echo "ERROR: Gagal mendapatkan URL Video. Cek ketersediaan video atau YT_COOKIES!"
             exit 1
           fi
 
           echo "--- [Memulai Pemotongan Video 1080p High-Bitrate] ---"
-          # Parameter Pro & Optimal:
-          # -crf 17: Level visual sangat jernih (menjaga tekstur detail)
-          # No 4. Upgrade Preset CPU ke superfast (keseimbangan kompresi rapi & efisiensi waktu)
-          # No 5. Penurunan Batas Maksimal Bitrate & Buffer untuk stabilitas stream
-          # -b:a 320k: Kualitas audio tertinggi untuk format AAC
-          # Catatan: Parameter :shortest=1 telah dihapus/tidak digunakan agar tidak crash saat buffering.
+          # No 3. Pengaturan tanpa ':shortest=1' (Mencegah crash buffering)
+          # No 4. Upgrade Preset CPU ke 'superfast'
+          # No 5. Penurunan Batas Maksimal Bitrate & Buffer (8000k / 12000k)
           
           ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i "$VIDEO_URL" \
           -c:v libx264 -preset superfast -crf 17 \
