@@ -1,4 +1,4 @@
-name: Live Streaming Fix Juli 2026 IHYA' 7 TV 
+name: Live Delay Fix Juli 2026 IHYA' 7 TV 
 
 on:
   workflow_dispatch:
@@ -74,7 +74,7 @@ jobs:
           # Parameter FFmpeg disesuaikan dengan skala logo persis seperti script pertama
           ffmpeg -xerror -re -i "$VIDEO_URL" \
             -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex "[0:v]scale=1920:1080[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=1920*0.13:-1[logo]; [main][logo]overlay=W-w-(W*0.02):(W*0.02)" \
+            -filter_complex "[0:v]scale=1920:1080[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=1920*0.12:-1[logo]; [main][logo]overlay=W-w-(W*0.02):(W*0.02)" \
             -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -ar 44100 -b:a 128k \
