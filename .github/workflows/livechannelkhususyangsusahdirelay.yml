@@ -73,9 +73,14 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Ringan (Anti-Lag)..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg dengan HLS Reconnect Fix..."
 
+            # Parameter Krusial:
+            # -http_persistent 0 : Matikan reuse connection (solusi error host beruabah)
+            # -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 : Auto reconnect tanpa patah
             ffmpeg -hide_banner -loglevel warning \
+              -http_persistent 0 \
+              -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 2 \
               -re -thread_queue_size 10240 -probesize 10M -analyzeduration 10M \
               -i "$STREAM_URL" \
               -stream_loop -1 -thread_queue_size 10240 -i "$LOGO_FILE" \
@@ -90,3 +95,4 @@ jobs:
             echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
+          
