@@ -1,4 +1,4 @@
-name: Live Streaming Fix Juli 2026 INTRO 2X 720P IHYA' 7 TV 
+name: Live Streaming Auto-Resolution (1080p / 720p) IHYA' 7 TV
 
 on:
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Jalankan Relay Streaming (720p Profile)
+      - name: 4. Jalankan Relay Streaming Auto-Select Profile
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -93,16 +93,40 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg 720p Profile..."
+            # CEK RESOLUSI SUMBER SECARA OTOMATIS
+            HEIGHT=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 "$VIDEO_URL")
+            
+            if [ -z "$HEIGHT" ]; then
+              HEIGHT=1080 # Fallback default jika gagal terdeteksi
+            fi
 
-            ffmpeg -re -i "$VIDEO_URL" \
-              -stream_loop -1 -i "$LOGO_FILE" \
-              -stream_loop 1 -i "$INTRO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.11:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1280:720,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
-              -c:v libx264 -preset superfast -b:v 3000k -maxrate 4000k -bufsize 6000k \
-              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -ar 44100 -b:a 128k \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            echo "🔍 Resolusi Sumber Terdeteksi: ${HEIGHT}p"
+
+            if [ "$HEIGHT" -ge 1080 ]; then
+              echo "🚀 SUMBER 1080p DITEMUKAN! Memulai FFmpeg Script 1 (1080p Profile)..."
+
+              ffmpeg -re -i "$VIDEO_URL" \
+                -stream_loop -1 -i "$LOGO_FILE" \
+                -stream_loop 1 -i "$INTRO_FILE" \
+                -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+                -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
+                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -ar 44100 -b:a 128k \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            else
+              echo "🚀 SUMBER 720p DITEMUKAN! Memulai FFmpeg Script 2 (720p Profile)..."
+
+              ffmpeg -re -i "$VIDEO_URL" \
+                -stream_loop -1 -i "$LOGO_FILE" \
+                -stream_loop 1 -i "$INTRO_FILE" \
+                -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.11:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1280:720,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+                -c:v libx264 -preset superfast -b:v 3000k -maxrate 4000k -bufsize 6000k \
+                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -ar 44100 -b:a 128k \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            fi
 
             echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
             sleep 10
