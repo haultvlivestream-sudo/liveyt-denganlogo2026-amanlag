@@ -1,4 +1,4 @@
-name: LIVE FIXX TERTINGGI JULI 2026 INTRO 2X
+name: Live FIX JULI 2026 INTRO 2X + Effect Feed Transparan (1080p / 720p)
 
 on:
   workflow_dispatch:
@@ -27,25 +27,29 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          yt-dlp -U
 
       - name: 4. Jalankan Relay Streaming
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           set +e
-          echo "$YT_COOKIES" > cookies.txt
+
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
           
-          # Memastikan file asset lengkap
           LOGO_FILE="logoihyajuni2026.mp4"
           INTRO_FILE="intrologoihya7tvjuli2026.mp4"
-          
+
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
             exit 1
           fi
-          
+
           if [ ! -f "$INTRO_FILE" ]; then
             echo "ERROR: File $INTRO_FILE tidak ditemukan!"
             ls
@@ -62,35 +66,75 @@ jobs:
           echo "Durasi Intro: $INTRO_DURATION detik. Total Jalan 2x: $TOTAL_INTRO_DURATION detik."
           echo "Efek Pudar (Fade Out Transparan 3 Detik) akan dimulai pada detik ke: $FADE_START"
 
+          # KUNCI UTAMA: Mengunci User-Agent Chrome Android Manusia asli (Bukan Googlebot!)
+          FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
           while true; do
-            echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
+            echo "--- [$(date)] Mencari Kualitas Tertinggi via Sesi Android Manusia ---"
             
-            VIDEO_URL=$(yt-dlp --cookies cookies.txt --js-runtime node --force-ipv4 -f "bestvideo+bestaudio/best" -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+            # Cek tinggi resolusi asli video dari yt-dlp
+            HEIGHT=$(yt-dlp $COOKIE_ARG \
+                            --js-runtime node \
+                            --force-ipv4 \
+                            --no-cache-dir \
+                            --user-agent "$FIXED_UA" \
+                            --extractor-args "youtube:player-client=android,web" \
+                            -f "bestvideo+bestaudio/best" \
+                            --print height "${{ github.event.inputs.link_youtube }}" 2>/dev/null | head -n 1)
+
+            # Menjalankan yt-dlp untuk ambil URL stream
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                --js-runtime node \
+                                --force-ipv4 \
+                                --no-cache-dir \
+                                --user-agent "$FIXED_UA" \
+                                --extractor-args "youtube:player-client=android,web" \
+                                -f "bestvideo+bestaudio/best" \
+                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "Gagal ambil URL. Cek Cookies atau Link!"
-              sleep 5
+              echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
+              echo "=== DETAIL ERROR DARI YT-DLP ==="
+              cat yt_error.log
+              echo "================================="
+              echo "Menunggu 10 detik sebelum mencoba kembali..."
+              sleep 10
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Logika Berlapis (Logo Adaptif + Intro 16:9)..."
+            if [ -z "$HEIGHT" ]; then
+              HEIGHT=1080
+            fi
 
-            # EKSEKUSI UTAMA FFMPEG 2026:
-            # - Timeout otomatis 10 detik (-rw_timeout 10000000) jika sumber terdeteksi lag/buffering parah.
-            # - Ukuran logo 13% dari lebar video utama (scale=iw*0.13:-1).
-            # - Video intro dikunci murni ke format layar lebar 16:9 (scale=1920:1080) dan diposisikan simetris di tengah.
-            # - Efek pudar transparan (alpha=1) menembus langsung ke siaran live tanpa jeda kedip hitam.
-            
-            ffmpeg -re -rw_timeout 10000000 -i "$VIDEO_URL" \
-              -stream_loop -1 -i "$LOGO_FILE" \
-              -stream_loop 1 -i "$INTRO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
-              -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
-              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -ar 44100 -b:a 128k \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            echo "🔍 Resolusi Sumber Terdeteksi: ${HEIGHT}p"
 
-            echo "Stream terputus atau terdeteksi LAG. Mengulang dalam 5 detik..."
-            sleep 5
+            if [ "$HEIGHT" -ge 1080 ]; then
+              echo "🚀 SUMBER 1080p DITEMUKAN! Memulai FFmpeg 1080p Profile (Logo 0.15)..."
+
+              ffmpeg -re -i "$VIDEO_URL" \
+                -stream_loop -1 -i "$LOGO_FILE" \
+                -stream_loop 1 -i "$INTRO_FILE" \
+                -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+                -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
+                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -ar 44100 -b:a 128k \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            else
+              echo "🚀 SUMBER 720p DITEMUKAN! Memulai FFmpeg 720p Profile (Fixed Scale)..."
+
+              ffmpeg -re -i "$VIDEO_URL" \
+                -stream_loop -1 -i "$LOGO_FILE" \
+                -stream_loop 1 -i "$INTRO_FILE" \
+                -filter_complex "[0:v]scale=1280:720[main_v]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.11:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1280:720,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+                -c:v libx264 -preset superfast -b:v 3000k -maxrate 4000k -bufsize 6000k \
+                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -ar 44100 -b:a 128k \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            fi
+
+            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
+            sleep 10
           done
           
