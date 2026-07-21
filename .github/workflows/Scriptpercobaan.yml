@@ -93,12 +93,18 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg dengan Intro + Overlay Logo..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg dengan Resizing Adaptif..."
 
+            # PERBAIKAN FILTER:
+            # 1. Logo scaled ke 15% (iw*0.15) supaya pas di 1080p dan 720p.
+            # 2. Intro di-scale mengikuti resolusi video utama (scale=main_w:main_h) sehingga aman di 720p/1080p tanpa zoom/crop.
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -stream_loop 1 -i "$INTRO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; \
+                               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; \
+                               [2:v]fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; \
+                               [main_with_logo][intro_faded]overlay=x=0:y=0:scale=main_w:main_h:format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
