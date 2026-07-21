@@ -52,7 +52,7 @@ jobs:
             exit 1
           fi
 
-          # 1. User-Agent Manusia untuk bypass blokir server CCTV & YouTube
+          # User-Agent Manusia untuk bypass blokir
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
@@ -79,23 +79,29 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV dan Audio..."
 
-            # 2. Perbaikan FFmpeg Pas:
-            # - Video langsung ditarik (stretch) ke 1280x720 tanpa bar hitam kanan-kiri
-            # - Ukuran logo diperkecil sedikit lagi menjadi 13.5% agar pas dan tidak mengganggu
+            # PERBAIKAN FFMEG ANTI NYANDET:
+            # 1. Menghapus "-re" pada Input 0 (CCTV) dan Input 1 (Audio YT) karena keduanya merupakan Live Stream asli.
+            # 2. Menambahkan "-thread_queue_size 1024" pada semua input agar ada buffer antrean data yang cukup di RAM VM.
+            # 3. Menambahkan "-tune zerolatency" agar proses encode libx264 instan dan tidak menimbun delay.
+            # 4. Menyesuaikan bitrate video 720p ke standar stabil (3500k - 4500k) agar koneksi upload GitHub Actions ke RTMP YouTube tidak tersedak.
+            
             ffmpeg -headers "User-Agent: $FIXED_UA" \
+              -thread_queue_size 1024 \
               -live_start_index -1 \
               -reconnect 1 \
               -reconnect_at_eof 1 \
               -reconnect_streamed 1 \
-              -reconnect_delay_max 5 \
+              -reconnect_delay_max 30 \
               -fflags +genpts+discardcorrupt \
-              -re -i "${{ github.event.inputs.m3u8_url }}" \
-              -re -i "$AUDIO_URL" \
+              -i "${{ github.event.inputs.m3u8_url }}" \
+              -thread_queue_size 1024 \
+              -i "$AUDIO_URL" \
+              -thread_queue_size 1024 \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.115:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
               -map "[v_out]" \
               -map 1:a \
-              -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4000k -maxrate 5000k -bufsize 8000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
@@ -103,4 +109,5 @@ jobs:
             echo "⚠️ Koneksi CCTV terputus atau buffer habis. Mengulang dalam 10 detik..."
             sleep 10
           done
+
           
