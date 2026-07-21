@@ -92,10 +92,10 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg (dengan Auto-Reconnect Network)..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Relay..."
 
-            # PENAMBAHAN OPSI KONEKSI ANTI-RTO (-reconnect & -rw_timeout)
-            ffmpeg -re \
+            # Ditambahkan -loglevel warning agar terminal bersih dari spam log HLS/reconnect
+            ffmpeg -hide_banner -loglevel warning -re \
               -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -rw_timeout 10000000 \
               -i "$VIDEO_URL" \
@@ -112,7 +112,7 @@ jobs:
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus atau koneksi timeout. Mengulang kembali dalam 10 detik..."
+            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
           
