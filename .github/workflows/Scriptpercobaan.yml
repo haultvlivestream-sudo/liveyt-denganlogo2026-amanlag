@@ -103,12 +103,15 @@ jobs:
             echo "🔍 Resolusi Sumber Terdeteksi: ${HEIGHT}p"
 
             if [ "$HEIGHT" -ge 1080 ]; then
-              echo "🚀 SUMBER 1080p DITEMUKAN! Memulai FFmpeg Script 1 (1080p Profile)..."
+              echo "🚀 SUMBER 1080p DITEMUKAN! Memulai FFmpeg Script 1 (1080p Fixed Profile)..."
 
               ffmpeg -re -i "$VIDEO_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
                 -stream_loop 1 -i "$INTRO_FILE" \
-                -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+                -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.18:-1[logo]; \
+                                 [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; \
+                                 [2:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; \
+                                 [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
                 -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
                 -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
@@ -120,7 +123,10 @@ jobs:
               ffmpeg -re -i "$VIDEO_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
                 -stream_loop 1 -i "$INTRO_FILE" \
-                -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.11:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1280:720,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+                -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.11:-1[logo]; \
+                                 [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; \
+                                 [2:v]scale=1280:720,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; \
+                                 [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
                 -c:v libx264 -preset superfast -b:v 3000k -maxrate 4000k -bufsize 6000k \
                 -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
