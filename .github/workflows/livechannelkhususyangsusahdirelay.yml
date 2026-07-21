@@ -52,15 +52,16 @@ jobs:
           FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Mengambil Stream Gabungan (M3U8 / HLS Mode) ---"
+            echo "--- [$(date)] Mengambil Stream Universal M3U8 / Live Stream ---"
             
-            # Mengutamakan format m3u8 / combined stream agar tidak perlu menyatukan 2 URL terpisah yang bikin jitter
+            # Menggunakan extractor-args android_vr/web agar bypass pembatasan format YouTube
             STREAM_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
-                                -f "best[vcodec^=avc1][height<=720]/best[height<=720]/best" \
+                                --extractor-args "youtube:player-client=android_vr,web_embedded,android" \
+                                -f "b/best" \
                                 -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log | head -n 1)
 
             if [ -z "$STREAM_URL" ]; then
@@ -73,13 +74,13 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg dengan Buffer Stabilizer..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg dengan Auto Scale 720p..."
 
             ffmpeg -hide_banner -loglevel warning \
               -re -thread_queue_size 10240 -probesize 10M -analyzeduration 10M \
               -i "$STREAM_URL" \
               -stream_loop -1 -thread_queue_size 10240 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[outv]" \
+              -filter_complex "[0:v]scale=-2:720[mainv]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [mainv][logo]overlay=W-w-(W*0.02):(W*0.02)[outv]" \
               -map "[outv]" -map 0:a? \
               -c:v libx264 -preset ultrafast -tune zerolatency \
               -b:v 3000k -maxrate 3500k -bufsize 7000k \
