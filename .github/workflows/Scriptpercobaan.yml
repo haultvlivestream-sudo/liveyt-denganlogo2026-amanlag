@@ -1,16 +1,13 @@
-name: Live CCTV m3u8 Fix Juli 2026
+name: Live Streaming Fix Juli 2026 INTRO 2X IHYA' 7 TV 
 
 on:
   workflow_dispatch:
     inputs:
-      m3u8_url:
-        description: '1. Link .m3u8 (Video)'
-        required: true
-      audio_url:
-        description: '2. Link YouTube (Audio)'
+      link_youtube:
+        description: 'Link Video Sumber'
         required: true
       kunci_rtmp:
-        description: '3. Stream Key YouTube'
+        description: 'Stream Key YouTube'
         required: true
 
 jobs:
@@ -25,12 +22,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 3. Install Tools (FFmpeg & yt-dlp Nightly)
+      - name: 3. Install Tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg jq curl
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
 
       - name: 4. Jalankan Relay Streaming
         env:
@@ -46,29 +43,48 @@ jobs:
           fi
           
           LOGO_FILE="logoihyajuni2026.mp4"
+          INTRO_FILE="intrologoihya7tvjuli2026.mp4"
+
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
             exit 1
           fi
 
-          # User-Agent Manusia untuk bypass blokir
+          if [ ! -f "$INTRO_FILE" ]; then
+            echo "ERROR: File $INTRO_FILE tidak ditemukan!"
+            ls
+            exit 1
+          fi
+
+          # Mengambil durasi asli intro
+          INTRO_DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INTRO_FILE")
+          # Total durasi untuk 2 kali putar
+          TOTAL_INTRO_DURATION=$(awk "BEGIN {print $INTRO_DURATION * 2}")
+          # Waktu mulai pudar (3 detik sebelum intro habis)
+          FADE_START=$(awk "BEGIN {print $TOTAL_INTRO_DURATION - 3}")
+
+          echo "Durasi Intro: $INTRO_DURATION detik. Total Jalan 2x: $TOTAL_INTRO_DURATION detik."
+          echo "Efek Pudar (Fade Out Transparan 3 Detik) akan dimulai pada detik ke: $FADE_START"
+
+          # KUNCI UTAMA: Mengunci User-Agent Chrome Android Manusia asli (Bukan Googlebot!)
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Mencari Kualitas Audio YouTube via Sesi Android ---"
+            echo "--- [$(date)] Mencari Kualitas Tertinggi via Sesi Android Manusia ---"
             
-            AUDIO_URL=$(yt-dlp $COOKIE_ARG \
+            # Menjalankan yt-dlp dengan identitas yang bersih dan stabil
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=android,web" \
-                                -f "bestaudio/best" \
-                                -g "${{ github.event.inputs.audio_url }}" 2>yt_error.log)
+                                -f "bestvideo+bestaudio/best" \
+                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
-            if [ -z "$AUDIO_URL" ]; then
-              echo "❌ GAGAL MENDAPATKAN URL AUDIO YOUTUBE!"
+            if [ -z "$VIDEO_URL" ]; then
+              echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
               echo "=== DETAIL ERROR DARI YT-DLP ==="
               cat yt_error.log
               echo "================================="
@@ -77,36 +93,18 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV dan Audio..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg dengan Intro + Overlay Logo..."
 
-            # PERBAIKAN FFMEG ANTI NYANDET:
-            # 1. Menghapus "-re" pada Input 0 (CCTV) dan Input 1 (Audio YT) karena keduanya merupakan Live Stream asli.
-            # 2. Menambahkan "-thread_queue_size 1024" pada semua input agar ada buffer antrean data yang cukup di RAM VM.
-            # 3. Menambahkan "-tune zerolatency" agar proses encode libx264 instan dan tidak menimbun delay.
-            # 4. Menyesuaikan bitrate video 720p ke standar stabil (3500k - 4500k) agar koneksi upload GitHub Actions ke RTMP YouTube tidak tersedak.
-            
-            ffmpeg -headers "User-Agent: $FIXED_UA" \
-              -thread_queue_size 1024 \
-              -live_start_index -1 \
-              -reconnect 1 \
-              -reconnect_at_eof 1 \
-              -reconnect_streamed 1 \
-              -reconnect_delay_max 30 \
-              -fflags +genpts+discardcorrupt \
-              -i "${{ github.event.inputs.m3u8_url }}" \
-              -thread_queue_size 1024 \
-              -i "$AUDIO_URL" \
-              -thread_queue_size 1024 \
+            ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.115:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
-              -map "[v_out]" \
-              -map 1:a \
-              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4000k -maxrate 5000k -bufsize 8000k \
+              -stream_loop 1 -i "$INTRO_FILE" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+              -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Koneksi CCTV terputus atau buffer habis. Mengulang dalam 10 detik..."
+            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
           
