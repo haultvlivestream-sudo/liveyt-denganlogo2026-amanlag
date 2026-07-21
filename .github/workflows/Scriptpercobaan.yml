@@ -67,13 +67,12 @@ jobs:
           echo "Durasi Intro: $INTRO_DURATION detik. Total Jalan 2x: $TOTAL_INTRO_DURATION detik."
           echo "Efek Pudar (Fade Out Transparan 3 Detik) akan dimulai pada detik ke: $FADE_START"
 
-          # KUNCI UTAMA: Mengunci User-Agent Chrome Android Manusia asli (Bukan Googlebot!)
+          # KUNCI UTAMA: Mengunci User-Agent Chrome Android Manusia asli
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
             echo "--- [$(date)] Mencari Kualitas Tertinggi via Sesi Android Manusia ---"
             
-            # Menjalankan yt-dlp dengan identitas yang bersih dan stabil
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
@@ -93,17 +92,19 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg dengan Resizing Adaptif..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # FILTER DENGAN SCALE2REF (Aman untuk 720p & 1080p):
-            # 1. Logo di-scale 15% dari lebar video utama.
-            # 2. Intro di-scale otomatis presisi mengikuti dimensi video utama [0:v] via scale2ref.
+            # FILTER FINAL TANPA ERROR SYNTAX & ADAPTIF RESOLUSI:
+            # 1. Logo di-scale 15% dari lebar video utama ([1:v] -> [logo]).
+            # 2. Intro di-scale otomatis presisi menyamakan ukuran video utama ([2:v][0:v]scale2ref).
+            # 3. Output unused_ref dibuang ke nullsink agar FFmpeg tidak protes 'unconnected output'.
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -stream_loop 1 -i "$INTRO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; \
                                [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; \
-                               [2:v][0:v]scale2ref[intro_scaled][ref_main]; \
+                               [2:v][0:v]scale2ref[intro_scaled][unused_ref]; \
+                               [unused_ref]nullsink; \
                                [intro_scaled]format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; \
                                [main_with_logo][intro_faded]overlay=x=0:y=0:format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
