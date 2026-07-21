@@ -92,13 +92,13 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg (dengan Auto-Reconnect Network)..."
 
-            # FILTER FINAL TANPA ERROR SYNTAX & ADAPTIF RESOLUSI:
-            # 1. Logo di-scale 15% dari lebar video utama ([1:v] -> [logo]).
-            # 2. Intro di-scale otomatis presisi menyamakan ukuran video utama ([2:v][0:v]scale2ref).
-            # 3. Output unused_ref dibuang ke nullsink agar FFmpeg tidak protes 'unconnected output'.
-            ffmpeg -re -i "$VIDEO_URL" \
+            # PENAMBAHAN OPSI KONEKSI ANTI-RTO (-reconnect & -rw_timeout)
+            ffmpeg -re \
+              -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+              -rw_timeout 10000000 \
+              -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -stream_loop 1 -i "$INTRO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; \
@@ -112,7 +112,7 @@ jobs:
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
+            echo "⚠️ Stream terputus atau koneksi timeout. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
           
