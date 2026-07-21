@@ -67,7 +67,7 @@ jobs:
             ffmpeg -hide_banner \
               -thread_queue_size 2048 -i pipe:0 \
               -stream_loop -1 -thread_queue_size 1024 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02),format=yuv420p[outv]" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.17:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02),format=yuv420p[outv]" \
               -map "[outv]" -map 0:a? \
               -c:v libx264 -preset ultrafast -tune zerolatency \
               -b:v 2500k -maxrate 3000k -bufsize 6000k \
