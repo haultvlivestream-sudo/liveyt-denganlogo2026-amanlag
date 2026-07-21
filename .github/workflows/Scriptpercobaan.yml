@@ -27,7 +27,6 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          yt-dlp -U
 
       - name: 4. Jalankan Relay Streaming
         env:
