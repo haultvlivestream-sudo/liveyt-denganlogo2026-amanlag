@@ -1,0 +1,84 @@
+name: Live Streaming Fix Juli 2026 FB to YT IHYA' 7 TV 
+
+on:
+  workflow_dispatch:
+    inputs:
+      link_facebook:
+        description: 'Link Video/Live Facebook Sumber'
+        required: true
+      kunci_rtmp:
+        description: 'Stream Key YouTube'
+        required: true
+
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Install Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
+
+      - name: 4. Jalankan Relay Streaming
+        env:
+          FB_COOKIES: ${{ secrets.FB_COOKIES }}
+        run: |
+          set +e
+
+          if [ -n "$FB_COOKIES" ] && [ "$FB_COOKIES" != "KOSONG" ]; then
+            echo "$FB_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
+          
+          LOGO_FILE="logoihyajuni2026.mp4"
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
+            ls
+            exit 1
+          fi
+
+          while true; do
+            echo "--- [$(date)] Mengambil Stream dari Facebook ---"
+            
+            # Menjalankan yt-dlp untuk mengambil link dari Facebook secara publik/bebas
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                --force-ipv4 \
+                                --no-cache-dir \
+                                -f "best" \
+                                -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log)
+
+            if [ -z "$VIDEO_URL" ]; then
+              echo "❌ GAGAL MENDAPATKAN URL VIDEO FACEBOOK!"
+              echo "=== DETAIL ERROR DARI YT-DLP ==="
+              cat yt_error.log
+              echo "================================="
+              echo "Menunggu 10 detik sebelum mencoba kembali..."
+              sleep 10
+              continue
+            fi
+
+            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg..."
+
+            ffmpeg -re -i "$VIDEO_URL" \
+              -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
+              -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -ar 44100 -b:a 128k \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
+            sleep 10
+          done
