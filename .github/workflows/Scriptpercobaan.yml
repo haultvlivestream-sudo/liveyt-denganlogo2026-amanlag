@@ -34,13 +34,28 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Download & Cut Video (Max 1080p, Cepat 5x, Tanpa Logo)
+      - name: 4. Download & Cut Video (Max 1080p, Cepat 5x, Pakai Cookies)
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
+          set +e
+
+          # Konfigurasi Cookies dari Secrets Repository
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+            echo "✅ Cookies berhasil dimuat untuk bypass bot."
+          else
+            COOKIE_ARG=""
+            echo "⚠️ PERINGATAN: YT_COOKIES kosong, kemungkinan besar akan terkena blokir bot!"
+          fi
+
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           echo "🚀 Memulai download bagian ${{ github.event.inputs.waktu_mulai }} s/d ${{ github.event.inputs.waktu_selesai }} (Maksimal Resolusi 1080p)..."
 
           yt-dlp \
+            $COOKIE_ARG \
             --js-runtime node \
             --force-ipv4 \
             --no-cache-dir \
@@ -52,6 +67,16 @@ jobs:
             --merge-output-format mp4 \
             -o "hasil_potongan.mp4" \
             "${{ github.event.inputs.link_youtube }}"
+
+          EXIT_CODE=$?
+
+          # Hapus file cookies demi keamanan setelah selesai
+          rm -f cookies.txt
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ Download gagal!"
+            exit $EXIT_CODE
+          fi
 
           echo "✅ Selesai! File 'hasil_potongan.mp4' berhasil dibuat."
           ls -lh hasil_potongan.mp4
