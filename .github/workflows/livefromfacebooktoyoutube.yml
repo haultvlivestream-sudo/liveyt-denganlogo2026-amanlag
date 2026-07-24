@@ -29,7 +29,16 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Jalankan Relay Streaming
+      - name: 4. Cek dan Deteksi Secret FB_COOKIES
+        run: |
+          if [ -n "${{ secrets.FB_COOKIES }}" ] && [ "${{ secrets.FB_COOKIES }}" != "KOSONG" ]; then
+            echo "✅ Status: Secret FB_COOKIES TERDETEKSI dan akan digunakan."
+          else
+            echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
+            echo "Jika link Facebook Anda terkena login wall, pastikan Anda sudah mengisi secrets FB_COOKIES di setting repository."
+          fi
+
+      - name: 5. Jalankan Relay Streaming
         env:
           FB_COOKIES: ${{ secrets.FB_COOKIES }}
         run: |
@@ -52,11 +61,11 @@ jobs:
           while true; do
             echo "--- [$(date)] Mengambil Stream dari Facebook ---"
             
-            # Menjalankan yt-dlp untuk mengambil link dari Facebook secara publik/bebas
+            # Menjalankan yt-dlp untuk mengambil link dari Facebook menggunakan cookies jika tersedia
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --force-ipv4 \
                                 --no-cache-dir \
-                                -f "best" \
+                                -f "b" \
                                 -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -82,3 +91,4 @@ jobs:
             echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
+          
