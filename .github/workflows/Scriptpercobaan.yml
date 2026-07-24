@@ -1,4 +1,4 @@
-name: Video Downloader & Cutter Max 1080p
+name: Video Downloader & Cutter Max 1080p (Safe HD)
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Download & Cut Video (Max 1080p, Cepat 5x, Pakai Cookies)
+      - name: 4. Download Full Video (Max 1080p, Cepat 5x, Pakai Cookies)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -43,15 +43,13 @@ jobs:
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
-            echo "✅ Cookies berhasil dimuat untuk bypass bot."
           else
             COOKIE_ARG=""
-            echo "⚠️ PERINGATAN: YT_COOKIES kosong!"
           fi
 
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
-          echo "🚀 Memulai download bagian ${{ github.event.inputs.waktu_mulai }} s/d ${{ github.event.inputs.waktu_selesai }} (Maksimal Resolusi 1080p)..."
+          echo "🚀 Mendownload video sumber dalam resolusi tinggi (Maksimal 1080p)..."
 
           yt-dlp \
             $COOKIE_ARG \
@@ -61,27 +59,40 @@ jobs:
             --user-agent "$FIXED_UA" \
             --extractor-args "youtube:player-client=android,web" \
             -N 5 \
-            --download-sections "*${{ github.event.inputs.waktu_mulai }}-${{ github.event.inputs.waktu_selesai }}" \
             -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
             --merge-output-format mp4 \
-            -o "hasil_potongan.mp4" \
+            -o "video_mentah.mp4" \
             "${{ github.event.inputs.link_youtube }}"
 
           EXIT_CODE=$?
           rm -f cookies.txt
 
-          if [ $EXIT_CODE -ne 0 ]; then
+          if [ $EXIT_CODE -ne 0 ] || [ ! -f "video_mentah.mp4" ]; then
             echo "❌ Download gagal!"
-            exit $EXIT_CODE
+            exit 1
           fi
 
-          echo "✅ Selesai! File 'hasil_potongan.mp4' berhasil dibuat."
+          echo "✅ Download video mentah selesai. Melanjutkan ke proses pemotongan..."
+
+      - name: 5. Potong Video Presisi via FFmpeg
+        run: |
+          echo "✂️ Memotong video dari jam/menit ${{ github.event.inputs.waktu_mulai }} sampai ${{ github.event.inputs.waktu_selesai }}..."
+          
+          # Menggunakan -ss dan -to dengan -c copy agar proses sangat cepat tanpa merusak kualitas HD
+          ffmpeg -ss "${{ github.event.inputs.waktu_mulai }}" \
+                 -to "${{ github.event.inputs.waktu_selesai }}" \
+                 -i "video_mentah.mp4" \
+                 -c copy \
+                 -avoid_negative_ts make_zero \
+                 "hasil_potongan.mp4"
+
+          echo "✅ Pemotongan selesai!"
           ls -lh hasil_potongan.mp4
 
-      - name: 5. Upload Hasil Video ke Artifacts
+      - name: 6. Upload Hasil Video ke Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: video-hasil-potongan
           path: hasil_potongan.mp4
-          retention-days: 1 # File otomatis terhapus setelah 1 hari agar tidak memenuhi storage
+          retention-days: 1
           
