@@ -82,7 +82,7 @@ jobs:
 
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.08:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.06:-1[logo]; [0:v][logo]overlay=W-w-(W*0.03):(W*0.03)" \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
