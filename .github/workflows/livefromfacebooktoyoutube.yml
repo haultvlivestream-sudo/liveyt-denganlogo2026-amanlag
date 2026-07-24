@@ -47,8 +47,10 @@ jobs:
           if [ -n "$FB_COOKIES" ] && [ "$FB_COOKIES" != "KOSONG" ]; then
             echo "$FB_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
+            FF_COOKIE_OPT="-cookies $(cat cookies.txt)"
           else
             COOKIE_ARG=""
+            FF_COOKIE_OPT=""
           fi
           
           LOGO_FILE="logoihyajuni2026.mp4"
@@ -58,10 +60,12 @@ jobs:
             exit 1
           fi
 
+          # User-Agent standar agar ffmpeg tidak diblokir CDN
+          FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
           while true; do
             echo "--- [$(date)] Mengambil Stream dari Facebook (Resolusi Tertinggi) ---"
             
-            # Menggunakan format terbaik untuk menghindari hasil video pecah/jelek
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --force-ipv4 \
                                 --no-cache-dir \
@@ -78,10 +82,13 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg..."
+            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg dengan bypass 403..."
 
-            # Ubah 'iw*0.13' menjadi 'iw*0.07' agar logo lebih kecil (misal: sekitar 7% dari layar)
-            ffmpeg -re -i "$VIDEO_URL" \
+            # Menambahkan User-Agent dan Header Cookies ke FFmpeg agar tidak ditolak CDN Facebook
+            ffmpeg -re \
+              -user_agent "$FIXED_UA" \
+              -headers "Cookie: $(cat cookies.txt 2>/dev/null | grep -v '^#' | awk '{print $NF"="$1}' | tr '\n' '; ')" \
+              -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.07:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
