@@ -1,4 +1,4 @@
-name: Video Downloader & Cutter Max 1080p (Safe HD)
+name: Video Downloader & Cutter Highest Quality (No Limit)
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Download Full Video (Max 1080p, Cepat 5x, Pakai Cookies)
+      - name: 4. Download Full Video (Kualitas Tertinggi/Tanpa Batas, Cepat 5x)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -49,7 +49,7 @@ jobs:
 
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
-          echo "🚀 Mendownload video sumber dalam resolusi tinggi (Maksimal 1080p)..."
+          echo "🚀 Mendownload video sumber dalam kualitas tertinggi (Tanpa batas resolusi)..."
 
           yt-dlp \
             $COOKIE_ARG \
@@ -59,7 +59,7 @@ jobs:
             --user-agent "$FIXED_UA" \
             --extractor-args "youtube:player-client=android,web" \
             -N 5 \
-            -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+            -f "bestvideo+bestaudio/best" \
             --merge-output-format mp4 \
             -o "video_mentah.mp4" \
             "${{ github.event.inputs.link_youtube }}"
@@ -78,7 +78,6 @@ jobs:
         run: |
           echo "✂️ Memotong video dari jam/menit ${{ github.event.inputs.waktu_mulai }} sampai ${{ github.event.inputs.waktu_selesai }}..."
           
-          # Menggunakan -ss dan -to dengan -c copy agar proses sangat cepat tanpa merusak kualitas HD
           ffmpeg -ss "${{ github.event.inputs.waktu_mulai }}" \
                  -to "${{ github.event.inputs.waktu_selesai }}" \
                  -i "video_mentah.mp4" \
@@ -95,4 +94,3 @@ jobs:
           name: video-hasil-potongan
           path: hasil_potongan.mp4
           retention-days: 1
-          
