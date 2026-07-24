@@ -59,13 +59,13 @@ jobs:
           fi
 
           while true; do
-            echo "--- [$(date)] Mengambil Stream dari Facebook ---"
+            echo "--- [$(date)] Mengambil Stream dari Facebook (Resolusi Tertinggi) ---"
             
-            # Menjalankan yt-dlp untuk mengambil link dari Facebook menggunakan cookies jika tersedia
+            # Menggunakan format terbaik untuk menghindari hasil video pecah/jelek
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --force-ipv4 \
                                 --no-cache-dir \
-                                -f "b" \
+                                -f "bestvideo+bestaudio/best" \
                                 -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -80,9 +80,10 @@ jobs:
 
             echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg..."
 
+            # Ubah 'iw*0.13' menjadi 'iw*0.07' agar logo lebih kecil (misal: sekitar 7% dari layar)
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.07:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
