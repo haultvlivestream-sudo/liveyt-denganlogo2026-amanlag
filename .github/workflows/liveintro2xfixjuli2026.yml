@@ -126,7 +126,7 @@ jobs:
               ffmpeg -re -i "$VIDEO_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
                 -stream_loop 1 -i "$INTRO_FILE" \
-                -filter_complex "[0:v]scale=1280:720[main_v]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.11:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1280:720,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
+                -filter_complex "[0:v]scale=1280:720[main_v]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1280:720,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$TOTAL_INTRO_DURATION)'" \
                 -c:v libx264 -preset superfast -b:v 3000k -maxrate 4000k -bufsize 6000k \
                 -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
