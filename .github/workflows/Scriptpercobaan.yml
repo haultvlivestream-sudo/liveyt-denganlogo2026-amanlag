@@ -1,4 +1,4 @@
-name: Video Downloader & Cutter Highest Quality (No Limit)
+name: Video Downloader & Cutter High Quality (Max Size & Jernih)
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Download Full Video (Kualitas Tertinggi/Tanpa Batas, Cepat 5x)
+      - name: 4. Download Full Video (Kualitas Tertinggi Tanpa Kompresi)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -49,7 +49,7 @@ jobs:
 
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
-          echo "🚀 Mendownload video sumber dalam kualitas tertinggi (Tanpa batas resolusi)..."
+          echo "🚀 Mendownload video sumber kualitas mentah tertinggi..."
 
           yt-dlp \
             $COOKIE_ARG \
@@ -72,20 +72,23 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Download video mentah selesai. Melanjutkan ke proses pemotongan..."
+          echo "✅ Download video mentah selesai. Cek ukuran file mentah:"
+          ls -lh video_mentah.mp4
 
-      - name: 5. Potong Video Presisi via FFmpeg
+      - name: 5. Potong Video Presisi Tinggi (High Bitrate / Ukuran Besar & Jernih)
         run: |
-          echo "✂️ Memotong video dari jam/menit ${{ github.event.inputs.waktu_mulai }} sampai ${{ github.event.inputs.waktu_selesai }}..."
+          echo "✂️ Memotong video dari ${{ github.event.inputs.waktu_mulai }} sampai ${{ github.event.inputs.waktu_selesai }}..."
           
-          ffmpeg -ss "${{ github.event.inputs.waktu_mulai }}" \
+          # Menggunakan -ss sebelum -i (akurat), dan -crf 12 (kualitas tinggi, ukuran file besar/padat)
+          ffmpeg -y -ss "${{ github.event.inputs.waktu_mulai }}" \
                  -to "${{ github.event.inputs.waktu_selesai }}" \
                  -i "video_mentah.mp4" \
-                 -c copy \
+                 -c:v libx264 -crf 12 -preset slow \
+                 -c:a aac -b:a 320k \
                  -avoid_negative_ts make_zero \
                  "hasil_potongan.mp4"
 
-          echo "✅ Pemotongan selesai!"
+          echo "✅ Pemotongan selesai! Cek ukuran file hasil:"
           ls -lh hasil_potongan.mp4
 
       - name: 6. Upload Hasil Video ke Artifacts
@@ -94,3 +97,4 @@ jobs:
           name: video-hasil-potongan
           path: hasil_potongan.mp4
           retention-days: 1
+          
