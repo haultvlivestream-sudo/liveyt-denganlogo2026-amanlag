@@ -1,4 +1,4 @@
-name: Video Downloader & Cutter Ultra HD Max Bitrate
+name: Video Downloader & Cutter Direct HD (No Merge)
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Download Full Video (Kualitas Mentah Paling Tinggi Tanpa Batas)
+      - name: 4. Download & Cut Langsung Jadi (Format Menyatu / Tanpa Pisah Audio)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -49,8 +49,9 @@ jobs:
 
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
-          echo "🚀 Mendownload video sumber kualitas tertinggi..."
+          echo "🚀 Mendownload segmen video format langsung (video + audio jadi satu)..."
 
+          # Menggunakan -f "b" untuk mengambil format pre-merged terbaik dan --download-sections untuk potong langsung
           yt-dlp \
             $COOKIE_ARG \
             --js-runtime node \
@@ -59,45 +60,24 @@ jobs:
             --user-agent "$FIXED_UA" \
             --extractor-args "youtube:player-client=android,web" \
             -N 5 \
-            -f "bestvideo+bestaudio/best" \
+            --download-sections "*${{ github.event.inputs.waktu_mulai }}-${{ github.event.inputs.waktu_selesai }}" \
+            -f "b" \
             --merge-output-format mp4 \
-            -o "video_mentah.mp4" \
+            -o "hasil_potongan.mp4" \
             "${{ github.event.inputs.link_youtube }}"
 
           EXIT_CODE=$?
           rm -f cookies.txt
 
-          if [ $EXIT_CODE -ne 0 ] || [ ! -f "video_mentah.mp4" ]; then
+          if [ $EXIT_CODE -ne 0 ] || [ ! -f "hasil_potongan.mp4" ]; then
             echo "❌ Download gagal!"
             exit 1
           fi
 
-          echo "✅ Download video mentah selesai. Ukuran file mentah:"
-          ls -lh video_mentah.mp4
-
-      - name: 5. Potong Video Ultra Tajam (Max Bitrate & Preset Very Slow)
-        run: |
-          echo "✂️ Memotong video secara presisi dengan kualitas pixel maksimal..."
-          
-          # -crf 10 dengan -preset veryslow memaksa encoder memproses detail terkecil pixel agar sangat tajam
-          # -b:v 0 membebaskan batas bitrate agar mengambil berapapun yang dibutuhkan sumber aslinya
-          ffmpeg -y -ss "${{ github.event.inputs.waktu_mulai }}" \
-                 -to "${{ github.event.inputs.waktu_selesai }}" \
-                 -i "video_mentah.mp4" \
-                 -c:v libx264 -crf 10 -preset veryslow \
-                 -b:v 0 -maxrate 50M -bufsize 100M \
-                 -pix_fmt yuv420p \
-                 -c:a aac -b:a 320k \
-                 -avoid_negative_ts make_zero \
-                 "hasil_potongan.mp4"
-
-          echo "✅ Pemotongan selesai! Cek ukuran file hasil akhir:"
+          echo "✅ Selesai! Cek file hasil potongan:"
           ls -lh hasil_potongan.mp4
-          
-          # Cek detail resolusi & bitrate asli di log
-          ffprobe -v error -select_streams v:0 -show_entries stream=width,height,codec_name,bit_rate -of default=noprint_wrappers=1 hasil_potongan.mp4
 
-      - name: 6. Upload Hasil Video ke Artifacts
+      - name: 5. Upload Hasil Video ke Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: video-hasil-potongan
