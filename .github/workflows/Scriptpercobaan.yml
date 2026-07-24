@@ -40,14 +40,13 @@ jobs:
         run: |
           set +e
 
-          # Konfigurasi Cookies dari Secrets Repository
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
             echo "✅ Cookies berhasil dimuat untuk bypass bot."
           else
             COOKIE_ARG=""
-            echo "⚠️ PERINGATAN: YT_COOKIES kosong, kemungkinan besar akan terkena blokir bot!"
+            echo "⚠️ PERINGATAN: YT_COOKIES kosong!"
           fi
 
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
@@ -69,8 +68,6 @@ jobs:
             "${{ github.event.inputs.link_youtube }}"
 
           EXIT_CODE=$?
-
-          # Hapus file cookies demi keamanan setelah selesai
           rm -f cookies.txt
 
           if [ $EXIT_CODE -ne 0 ]; then
@@ -80,4 +77,11 @@ jobs:
 
           echo "✅ Selesai! File 'hasil_potongan.mp4' berhasil dibuat."
           ls -lh hasil_potongan.mp4
+
+      - name: 5. Upload Hasil Video ke Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-hasil-potongan
+          path: hasil_potongan.mp4
+          retention-days: 1 # File otomatis terhapus setelah 1 hari agar tidak memenuhi storage
           
