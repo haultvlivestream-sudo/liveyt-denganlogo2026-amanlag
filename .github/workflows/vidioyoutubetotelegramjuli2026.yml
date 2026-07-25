@@ -1,4 +1,4 @@
-name: Live Record to Telegram Bot (Stable Version)
+name: Live Record to Telegram Bot (Ultimate Fix)
 
 on:
   workflow_dispatch:
@@ -6,14 +6,10 @@ on:
       link_youtube:
         description: 'Link Video Sumber'
         required: true
-      waktu_mulai:
-        description: 'Waktu Mulai (Contoh: 00:00:00)'
-        required: true
-        default: '00:00:00'
       durasi_detik:
-        description: 'Durasi Rekam dalam Detik (Contoh: 300 untuk 5 menit)'
+        description: 'Durasi Rekam dalam Detik (Contoh: 633)'
         required: true
-        default: '300'
+        default: '633'
 
 jobs:
   record_to_telegram:
@@ -33,7 +29,7 @@ jobs:
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      - name: 4. Proses Rekam & Potong Video (Stable)
+      - name: 4. Proses Rekam Video (Tanpa Ribet)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -63,15 +59,6 @@ jobs:
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           echo "--- Mengambil URL Video ---"
-          HEIGHT=$(yt-dlp $COOKIE_ARG \
-                          --js-runtime node \
-                          --force-ipv4 \
-                          --no-cache-dir \
-                          --user-agent "$FIXED_UA" \
-                          --extractor-args "youtube:player-client=android,web" \
-                          -f "bestvideo+bestaudio/best" \
-                          --print height "${{ github.event.inputs.link_youtube }}" 2>/dev/null | head -n 1)
-
           VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                               --js-runtime node \
                               --force-ipv4 \
@@ -79,48 +66,34 @@ jobs:
                               --user-agent "$FIXED_UA" \
                               --extractor-args "youtube:player-client=android,web" \
                               -f "bestvideo+bestaudio/best" \
-                              -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
+                              -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
 
           if [ -z "$VIDEO_URL" ]; then
             echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
-            cat yt_error.log
             exit 1
           fi
 
-          if [ -z "$HEIGHT" ]; then
-            HEIGHT=1080
-          fi
-
-          # Konversi waktu mulai ke detik untuk yt-dlp/ffmpeg yang lebih stabil
-          START_TIME="${{ github.event.inputs.waktu_mulai }}"
           DURATION="${{ github.event.inputs.durasi_detik }}"
 
-          echo "🔍 Resolusi: ${HEIGHT}p | Mulai dari: $START_TIME | Durasi: $DURATION detik"
+          echo "🚀 Menjalankan FFmpeg (Durasi: $DURATION detik)..."
 
-          if [ "$HEIGHT" -ge 1080 ]; then
-            ffmpeg -y -ss "$START_TIME" -i "$VIDEO_URL" \
-              -stream_loop -1 -i "$LOGO_FILE" \
-              -i "$INTRO_FILE" \
-              -t "$DURATION" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$INTRO_DURATION)'" \
-              -c:v libx264 -preset ultrafast -crf 23 \
-              -pix_fmt yuv420p \
-              -c:a aac -b:a 128k \
-              "hasil_rekaman.mp4"
-          else
-            ffmpeg -y -ss "$START_TIME" -i "$VIDEO_URL" \
-              -stream_loop -1 -i "$LOGO_FILE" \
-              -i "$INTRO_FILE" \
-              -t "$DURATION" \
-              -filter_complex "[0:v]scale=1280:720[main_v]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [main_v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1280:720,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$INTRO_DURATION)'" \
-              -c:v libx264 -preset ultrafast -crf 23 \
-              -pix_fmt yuv420p \
-              -c:a aac -b:a 128k \
-              "hasil_rekaman.mp4"
+          # Eksekusi bersih tanpa -ss yang bikin timeout, langsung batasi pakai -t
+          ffmpeg -y -i "$VIDEO_URL" \
+            -stream_loop -1 -i "$LOGO_FILE" \
+            -i "$INTRO_FILE" \
+            -t "$DURATION" \
+            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[main_with_logo]; [2:v]scale=1920:1080,format=pix_fmts=yuva420p,fade=t=out:st=$FADE_START:d=3:alpha=1[intro_faded]; [main_with_logo][intro_faded]overlay=x='(W-w)/2':y='(H-h)/2':format=auto:enable='lte(t,$INTRO_DURATION)'" \
+            -c:v libx264 -preset ultrafast -crf 23 \
+            -pix_fmt yuv420p \
+            -c:a aac -b:a 128k \
+            "hasil_rekaman.mp4"
+
+          if [ ! -f "hasil_rekaman.mp4" ]; then
+            echo "❌ GAGAL: File hasil rekaman tidak tercipta!"
+            exit 1
           fi
 
-          echo "✅ Berhenti otomatis dan sukses!"
-          ls -lh hasil_rekaman.mp4
+          echo "✅ Berhasil merender!"
 
       - name: 5. Kirim Video ke Telegram Bot
         env:
@@ -130,7 +103,7 @@ jobs:
           echo "📤 Mengirim video ke Telegram..."
           curl -F chat_id="$TELEGRAM_CHAT_ID" \
                -F document=@"hasil_rekaman.mp4" \
-               -F caption="✅ Berhasil! Video HD versi stabil selesai." \
+               -F caption="✅ Berhasil! Video sukses terkirim ke Telegram." \
                "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument"
           echo "✨ Selesai!"
           
