@@ -1,86 +1,90 @@
-name: Potong Video YouTube (1080p HD + Custom Logo)
+name: YouTube Downloader & Cutter 5x Speed
 
 on:
   workflow_dispatch:
     inputs:
       link_youtube:
-        description: 'Link YouTube (Video Sumber)'
+        description: 'Link Video YouTube'
         required: true
-      mulai:
-        description: 'Mulai (Jam:Menit:Detik)'
-        default: '00:00:10'
-      selesai:
-        description: 'Selesai (Jam:Menit:Detik)'
-        default: '00:00:40'
+      waktu_mulai:
+        description: 'Waktu Mulai (Contoh: 00:00:00)'
+        required: true
+        default: '00:00:00'
+      waktu_selesai:
+        description: 'Waktu Selesai (Contoh: 00:05:00 - Kosongkan jika sampai habis)'
+        required: false
+        default: ''
 
 jobs:
-  proses_editing:
+  download-cut:
     runs-on: ubuntu-latest
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: 3. Install Tools (Optimized)
+      - name: 2. Install Tools (yt-dlp, ffmpeg, aria2c)
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl bc
-          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl aria2
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      - name: 4. Eksekusi Potong & Tambah Logo (1080p)
+      - name: 3. Download & Potong Video Akurat (Super Fast 5x+ Multi-Connection)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          # Simpan cookies jika ada
-          if [ -n "$YT_COOKIES" ]; then
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
           else
             COOKIE_ARG=""
           fi
-          
-          # Cek keberadaan file logo di repo (sesuai nama file kamu)
-          LOGO_FILE="logo_video.mp4"
-          if [ ! -f "$LOGO_FILE" ]; then
-            echo "PERINGATAN: $LOGO_FILE tidak ditemukan, mencoba mencari file mp4 lain untuk logo..."
-            LOGO_FILE=$(ls *.mp4 | grep -v "hasil" | head -n 1)
-          fi
-          echo "Menggunakan logo: $LOGO_FILE"
 
-          echo "--- [Mencari Direct Link 1080p] ---"
-          VIDEO_URL=$(yt-dlp $COOKIE_ARG \
-                             --force-ipv4 \
-                             --no-playlist \
-                             -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
-                             -g "${{ github.event.inputs.link_youtube }}")
+          FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
-          if [ -z "$VIDEO_URL" ]; then
-            echo "ERROR: Gagal mendapatkan URL 1080p."
+          echo "🚀 Memulai download dengan kecepatan tinggi (aria2c multi-connection)..."
+          yt-dlp $COOKIE_ARG \
+            --js-runtime node \
+            --force-ipv4 \
+            --no-cache-dir \
+            --user-agent "$FIXED_UA" \
+            --extractor-args "youtube:player-client=android,web" \
+            -f "bestvideo+bestaudio/best" \
+            --external-downloader aria2c \
+            --external-downloader-args "-x 16 -s 16 -k 1M" \
+            --merge-output-format mp4 \
+            -o "video_mentah.mp4" \
+            "${{ github.event.inputs.link_youtube }}"
+
+          if [ ! -f "video_mentah.mp4" ]; then
+            echo "❌ GAGAL MENDOWNLOAD VIDEO!"
             exit 1
           fi
 
-          echo "--- [Memulai Proses Render 1080p + Logo] ---"
-          # LOGIKA FILTER:
-          # 1. Mengambil durasi video utama (-ss ke -to)
-          # 2. Mengambil logo dan looping (-stream_loop -1)
-          # 3. Filter Complex: 
-          #    - [1:v] Mengolah logo: potong jadi kotak (crop), hilangkan warna hijau (colorkey), kecilkan skala (scale=150)
-          #    - [0:v][logo] Overlay: Pasang di pojok kanan atas (W-w-25:25)
-          
-          ffmpeg -ss ${{ github.event.inputs.mulai }} -to ${{ github.event.inputs.selesai }} -i "$VIDEO_URL" \
-          -stream_loop -1 -i "$LOGO_FILE" \
-          -filter_complex "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=150:-1[logo]; [0:v][logo]overlay=W-w-30:30:shortest=1" \
-          -c:v libx264 -preset medium -crf 17 -c:a aac -b:a 256k \
-          -movflags +faststart \
-          hasil_1080p_berlogo.mp4
+          SS_ARG="-ss ${{ github.event.inputs.waktu_mulai }}"
+          TO_ARG=""
+          if [ -n "${{ github.event.inputs.waktu_selesai }}" ]; then
+            TO_ARG="-to ${{ github.event.inputs.waktu_selesai }}"
+          fi
 
-      - name: 5. Upload Hasil
+          echo "✂️ Memotong video secara akurat sesuai waktu yang diminta..."
+          
+          ffmpeg -y $SS_ARG -i "video_mentah.mp4" $TO_ARG \
+            -c:v copy -c:a copy \
+            hasil_potong.mp4
+
+          if [ ! -f "hasil_potong.mp4" ] || [ ! -s "hasil_potong.mp4" ]; then
+            echo "⚠️ Melakukan fallback re-encode cepat untuk presisi maksimal..."
+            ffmpeg -y $SS_ARG -i "video_mentah.mp4" $TO_ARG \
+              -c:v libx264 -preset ultrafast -crf 22 \
+              -c:a aac -b:a 192k \
+              hasil_potong.mp4
+          fi
+
+          echo "✅ Proses potong video selesai!"
+
+      - name: 4. Upload Hasil ke Artifact GitHub
         uses: actions/upload-artifact@v4
         with:
-          name: Video_HD_Berlogo
-          path: hasil_1080p_berlogo.mp4
-          retention-days: 1
+          name: video-hasil-potong
+          path: hasil_potong.mp4
+          
