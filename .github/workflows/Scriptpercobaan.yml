@@ -52,9 +52,8 @@ jobs:
           FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Memulai Live Stream Ultra-Resilient Mode ---"
+            echo "--- [$(date)] Memulai Live Stream Stable Mode ---"
 
-            # Menggunakan yt-dlp dengan buffer stabil & penanganan reconnect otomatis di level FFmpeg
             yt-dlp $COOKIE_ARG \
               --js-runtime node \
               --force-ipv4 \
@@ -65,9 +64,8 @@ jobs:
               -f "b/best[height<=720]/best" \
               -o - "${{ github.event.inputs.link_youtube }}" | \
             ffmpeg -hide_banner \
-              -rw_timeout 15000000 \
-              -fflags +nobuffer+discardcorrupt \
-              -thread_queue_size 4096 -i pipe:0 \
+              -fflags +nobuffer \
+              -thread_queue_size 2048 -i pipe:0 \
               -stream_loop -1 -thread_queue_size 1024 -i "$LOGO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.17:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02),format=yuv420p[outv]" \
               -map "[outv]" -map 0:a? \
@@ -77,7 +75,7 @@ jobs:
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus atau macet. Melakukan restart ulang dalam 5 detik..."
+            echo "⚠️ Stream terputus. Mengulang kembali dalam 5 detik..."
             sleep 5
           done
           
