@@ -1,20 +1,24 @@
-name: Live Streaming Fix 2026 | Resolusi Tertinggi (Auto 03:00 WIB)
+name: Live Streaming Fix Juli 2026 IHYA' 7 TV (Auto 05:30 WIB )
 
 on:
-  # Trigger Manual
+  schedule:
+    # 22:30 UTC = 05:30 WIB (UTC+7)
+    - cron: '30 22 * * *'
   workflow_dispatch:
     inputs:
       link_youtube:
-        description: 'Link Video Sumber (Kosongkan = Pakai Link Default)'
+        description: 'Link Video Sumber'
         required: false
+        default: 'https://www.youtube.com/live/ISK-7Z7sRzA?si=9U6RZu8dBAeU_Ooz'
       kunci_rtmp:
-        description: 'Stream Key YouTube (Kosongkan = Pakai Key Default)'
+        description: 'Stream Key YouTube'
         required: false
+        default: 'szju-ryy4-e3qe-fx1j-axmx'
 
-  # Trigger Otomatis (Jadwal)
-  schedule:
-    # Jam 20:00 UTC = Jam 03:00 WIB (Dini Hari)
-    - cron: '0 20 * * *'
+env:
+  # Digunakan sebagai fallback jika dijalankan via schedule (otomatis)
+  LINK_YOUTUBE_DEFAULT: 'https://www.youtube.com/live/ISK-7Z7sRzA?si=9U6RZu8dBAeU_Ooz'
+  KUNCI_RTMP_DEFAULT: 'szju-ryy4-e3qe-fx1j-axmx'
 
 jobs:
   streaming:
@@ -38,62 +42,62 @@ jobs:
       - name: 4. Jalankan Relay Streaming
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
-          
-          # === INPUT DARI USER (MANUAL) ===
-          MANUAL_LINK: ${{ github.event.inputs.link_youtube }}
-          MANUAL_KEY: ${{ github.event.inputs.kunci_rtmp }}
-
-          # === HARDCODED DEFAULT (LINK & KEY SUDAH TERBARU) ===
-          DEFAULT_LINK: 'https://www.youtube.com/live/1iL7fmA37CA?si=X8la1_xuuWHzsSKM'
-          DEFAULT_KEY: 'Vf94-zxst-p4uv-d5e5-43hj'
-          
+          # Menentukan sumber link dan key RTMP dari input manual atau nilai default
+          TARGET_URL: ${{ github.event.inputs.link_youtube || env.LINK_YOUTUBE_DEFAULT }}
+          STREAM_KEY: ${{ github.event.inputs.kunci_rtmp || env.KUNCI_RTMP_DEFAULT }}
         run: |
           set +e
-          echo "$YT_COOKIES" > cookies.txt
+
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
           
-          LOGO_FILE="logoihya2026.mp4"
+          LOGO_FILE="logoihyajuni2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
             exit 1
           fi
 
-          # Logika Pemilihan
-          LINK_SUMBER="${MANUAL_LINK:-$DEFAULT_LINK}"
-          STREAM_KEY="${MANUAL_KEY:-$DEFAULT_KEY}"
-
-          echo "------------------------------------------------"
-          echo "Target Link : $LINK_SUMBER"
-          echo "Target Key  : ...${STREAM_KEY: -4} (Disensor)"
-          echo "------------------------------------------------"
+          # KUNCI UTAMA: Mengunci User-Agent Chrome Android Manusia asli (Bukan Googlebot!)
+          FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Mencari Kualitas Tertinggi ---"
+            echo "--- [$(date)] Mencari Kualitas Tertinggi via Sesi Android Manusia ---"
             
-            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
-                               --js-runtime node \
-                               --force-ipv4 \
-                               -f "bestvideo+bestaudio/best" \
-                               -g "$LINK_SUMBER" 2>/dev/null)
+            # Menjalankan yt-dlp dengan identitas yang bersih dan stabil
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                --js-runtime node \
+                                --force-ipv4 \
+                                --no-cache-dir \
+                                --user-agent "$FIXED_UA" \
+                                --extractor-args "youtube:player-client=android,web" \
+                                -f "bestvideo+bestaudio/best" \
+                                -g "$TARGET_URL" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "Gagal ambil URL. Cek Cookies atau Link!"
-              sleep 5
+              echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
+              echo "=== DETAIL ERROR DARI YT-DLP ==="
+              cat yt_error.log
+              echo "================================="
+              echo "Menunggu 10 detik sebelum mencoba kembali..."
+              sleep 10
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg dengan Resolusi Adaptif..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
 
             ffmpeg -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex \
-              "[1:v]colorkey=0x009400:0.1:0.1,scale=iw*0.12:-1[logo]; \
-               [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1" \
-              -c:v libx264 -preset ultrafast -b:v 8000k -maxrate 10000k -bufsize 20000k \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)" \
+              -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
 
-            echo "Stream terputus. Mengulang dalam 5 detik..."
-            sleep 5
+            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
+            sleep 10
           done
