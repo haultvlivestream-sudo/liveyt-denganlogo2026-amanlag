@@ -60,7 +60,7 @@ jobs:
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=android,web" \
-                                -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+                                -f "best" \
                                 -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -75,8 +75,12 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # FFMPEG DENGAN BUFFER OPTIMIZATION (Optimasi Khusus Channel Sulit)
+            # FFMPEG DENGAN AUTO-RECONNECT & TIMEOUT ANTI-STUCK
             ffmpeg \
+              -reconnect 1 \
+              -reconnect_streamed 1 \
+              -reconnect_delay_max 5 \
+              -rw_timeout 15000000 \
               -thread_queue_size 1024 -i "$VIDEO_URL" \
               -thread_queue_size 1024 -re -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[outv]" \
@@ -86,7 +90,7 @@ jobs:
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
-            sleep 10
+            echo "⚠️ Stream terputus / Timeout terdeteksi! Mengulang ambil URL baru dalam 5 detik..."
+            sleep 5
           done
           
