@@ -1,4 +1,4 @@
-name: LIVE FIX JULI 2026 CHANNEL KHUSUS MASJID ARRIYADH DLL IHYA' 7 TV
+name: LIVE FIX AGUSTUS KHUSUS CHANNEL YANG SUSAH DI RELAY
 
 on:
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Jalankan Relay Streaming (480p Light Mode)
+      - name: 4. Jalankan Relay Streaming
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -42,7 +42,7 @@ jobs:
             COOKIE_ARG=""
           fi
           
-          LOGO_FILE="logoihyajuni2026.mp4"
+          LOGO_FILE="logoihya7tvagustus2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
@@ -52,17 +52,16 @@ jobs:
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Mencari Stream 480p/Terbaik via Sesi Android ---"
+            echo "--- [$(date)] Mencari Kualitas Tertinggi via Sesi Android Manusia ---"
             
-            # Memprioritaskan format resolusi <= 480p agar ringan dan stabil
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=android,web" \
-                                -f "b[height<=480]/best[height<=480]/b/best" \
-                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log | head -n 1)
+                                -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
               echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
@@ -74,15 +73,15 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg (480p)..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
-              -rw_timeout 15000000 \
-              -analyzeduration 10M -probesize 10M \
-              -re -i "$VIDEO_URL" \
-              -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=854:480[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.08:-1[logo]; [main][logo]overlay=W-w-(W*0.02):(W*0.02)" \
-              -c:v libx264 -preset superfast -b:v 1500k -maxrate 2000k -bufsize 3000k \
+            # FFMPEG DENGAN BUFFER OPTIMIZATION (Optimasi Khusus Channel Sulit)
+            ffmpeg \
+              -thread_queue_size 1024 -i "$VIDEO_URL" \
+              -thread_queue_size 1024 -re -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[outv]" \
+              -map "[outv]" -map 0:a? \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4500k -maxrate 6000k -bufsize 9000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
