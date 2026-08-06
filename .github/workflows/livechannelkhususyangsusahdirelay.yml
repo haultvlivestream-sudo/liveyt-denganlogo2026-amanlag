@@ -75,20 +75,23 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # FIX UTAMA: MAP AUDIO STEREO EXPLICIT + RTMP MUXER FLAGS
+            # FIX CDN SWITCHING & DROP FRAMES
             ffmpeg \
-              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+              -multiple_requests 0 \
+              -http_persistent 0 \
+              -max_reload 3 \
+              -rw_timeout 10000000 \
               -thread_queue_size 2048 -i "$VIDEO_URL" \
               -thread_queue_size 2048 -re -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[outv]" \
-              -map "[outv]" -map 0:a \
-              -c:v libx264 -preset superfast -b:v 4000k -maxrate 5000k -bufsize 8000k \
+              -map "[outv]" -map 0:a? \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4000k -maxrate 5000k -bufsize 8000k \
               -pix_fmt yuv420p -r 30 -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -b:a 128k -ar 44100 -ac 2 \
               -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus. Mengulang kembali dalam 5 detik..."
-            sleep 5
+            echo "⚠️ Stream terputus / CDN switch error terdeteksi. Mengulang ambil URL baru dalam 3 detik..."
+            sleep 3
           done
           
