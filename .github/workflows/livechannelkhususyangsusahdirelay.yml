@@ -60,7 +60,7 @@ jobs:
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=android,web" \
-                                -f "best" \
+                                -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
                                 -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -75,22 +75,20 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
 
-            # FFMPEG DENGAN AUTO-RECONNECT & TIMEOUT ANTI-STUCK
+            # FIX UTAMA: MAP AUDIO STEREO EXPLICIT + RTMP MUXER FLAGS
             ffmpeg \
-              -reconnect 1 \
-              -reconnect_streamed 1 \
-              -reconnect_delay_max 5 \
-              -rw_timeout 15000000 \
-              -thread_queue_size 1024 -i "$VIDEO_URL" \
-              -thread_queue_size 1024 -re -stream_loop -1 -i "$LOGO_FILE" \
+              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+              -thread_queue_size 2048 -i "$VIDEO_URL" \
+              -thread_queue_size 2048 -re -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02)[outv]" \
-              -map "[outv]" -map 0:a? \
-              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4500k -maxrate 6000k -bufsize 9000k \
-              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -ar 44100 -b:a 128k \
+              -map "[outv]" -map 0:a \
+              -c:v libx264 -preset superfast -b:v 4000k -maxrate 5000k -bufsize 8000k \
+              -pix_fmt yuv420p -r 30 -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -b:a 128k -ar 44100 -ac 2 \
+              -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus / Timeout terdeteksi! Mengulang ambil URL baru dalam 5 detik..."
+            echo "⚠️ Stream terputus. Mengulang kembali dalam 5 detik..."
             sleep 5
           done
           
