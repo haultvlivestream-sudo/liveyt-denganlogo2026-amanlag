@@ -42,7 +42,7 @@ jobs:
             COOKIE_ARG=""
           fi
           
-          LOGO_FILE="logoihyajuni2026.mp4"
+          LOGO_FILE="logoihya7tvagustus2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File $LOGO_FILE tidak ditemukan!"
             ls
