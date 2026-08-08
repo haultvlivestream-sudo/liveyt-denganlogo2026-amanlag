@@ -52,15 +52,16 @@ jobs:
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Memulai Stream via Direct Pipeyt-dlp ---"
+            echo "--- [$(date)] Memulai Continuous Pipe Live Stream ---"
             
-            # YT-DLP LANGSUNG DILAYARKAN (PIPE) KE FFMPEG
+            # YT-DLP DENGAN HLS MPEGTS CONTINUOUS STREAMING
             yt-dlp $COOKIE_ARG \
               --js-runtime node \
               --force-ipv4 \
               --no-cache-dir \
               --user-agent "$FIXED_UA" \
               --extractor-args "youtube:player-client=android,web" \
+              --hls-use-mpegts \
               -f "b/best" \
               -o - "${{ github.event.inputs.link_youtube }}" | ffmpeg \
               -thread_queue_size 2048 -i pipe:0 \
@@ -71,9 +72,10 @@ jobs:
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -b:a 128k -ar 44100 -ac 2 \
               -flvflags no_duration_filesize \
+              -shortest \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus / Selesai. Mengulang dalam 5 detik..."
-            sleep 5
+            echo "⚠️ Stream terputus / Selesai. Otomatis mengulang dalam 3 detik..."
+            sleep 3
           done
           
