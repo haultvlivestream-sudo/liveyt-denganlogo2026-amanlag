@@ -1,4 +1,4 @@
-name: YouTube Relay Pro (Direct Stream Fix)
+Name: LIVE FIX AGUSTUS 2026 AUDIO 30X LIPAT
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 1. Checkout Repository
-        uses: actions/checkout@v4 # PENTING: Agar file logo_video.mp4 di repo bisa terbaca
+        uses: actions/checkout@v4
 
       - name: 2. Install Node.js
         uses: actions/setup-node@v4
@@ -34,48 +34,75 @@ jobs:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           set +e
-          echo "$YT_COOKIES" > cookies.txt
+
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
           
-          # Cek apakah file logo benar-benar ada di folder repo
-          if [ ! -f "logoihya2026.mp4" ]; then
-            echo "FATAL ERROR: File logo_video.mp4 tidak ditemukan di repository!"
-            ls -R # List file untuk debugging
+          LOGO_FILE="logoihya7tvagustus2026.mp4"
+          if [ ! -f "$LOGO_FILE" ]; then
+            # Fallback jika nama file logo berbeda
+            LOGO_FILE="logoihyajuni2026.mp4"
+          fi
+
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "ERROR: File logo tidak ditemukan!"
+            ls
             exit 1
           fi
 
+          # User-Agent Safari iOS (Bypass 429 & Ramah Cookies)
+          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
+
           while true; do
-            echo "--- [$(date)] Mencari Direct Link ---"
+            echo "--- [$(date)] Mengambil Stream via Client iOS (Khusus Channel Susah Relay) ---"
             
-            VIDEO_URL=$(yt-dlp --cookies cookies.txt \
-                               --js-runtime node \
-                               --force-ipv4 \
-                               --no-playlist \
-                               --extractor-args "youtube:player_client=mweb,web" \
-                               -f "best[height<=720][protocol!=m3u8_native][protocol!=m3u8]" \
-                               -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                --js-runtime node \
+                                --force-ipv4 \
+                                --no-cache-dir \
+                                --user-agent "$FIXED_UA" \
+                                --extractor-args "youtube:player-client=ios,mweb" \
+                                -f "b/best" \
+                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
-              VIDEO_URL=$(yt-dlp --cookies cookies.txt --js-runtime node -f "best[height<=720]" -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
+              echo "⚠️ Client iOS gagal, mencoba Fallback Client TV..."
+              VIDEO_URL=$(yt-dlp --force-ipv4 \
+                                  --no-cache-dir \
+                                  --extractor-args "youtube:player-client=tv_embedded" \
+                                  -f "b/best" \
+                                  -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
             fi
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "Gagal ambil URL. Cek Cookies!"
+              echo "❌ GAGAL MENDAPATKAN URL VIDEO! Menunggu 5 detik..."
+              cat yt_error.log 2>/dev/null
               sleep 5
               continue
             fi
 
-            echo "SUMBER DITEMUKAN! Memulai FFmpeg..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Auto-Kill & Anti-Nyandet..."
 
-            # Menggunakan file logo_video.mp4 yang sudah diupload ke repo
-            ffmpeg -re -i "$VIDEO_URL" \
-              -stream_loop -1 -i logo_video.mp4 \
-              -filter_complex "[1:v]crop=ih:ih,colorkey=0x009400:0.1:0.1,scale=85:-1[logo]; [0:v][logo]overlay=W-w-25:25:shortest=1" \
-              -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
-              -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -ar 44100 -b:a 128k \
+            # EKSEKUSI FFMPEG:
+            # - Pembesaran audio 30x lipat via volume=30
+            # - Limiter alimiter=limit=0.95 untuk mencegah clipping/suara pecah
+            ffmpeg \
+              -rw_timeout 5000000 \
+              -thread_queue_size 4096 -i "$VIDEO_URL" \
+              -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.10:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]; [0:a]volume=30,alimiter=limit=0.95[outa]" \
+              -map "[outv]" -map "[outa]" \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -b:a 128k -ar 44100 -ac 2 \
+              -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "Stream terputus. Mengulang dalam 5 detik..."
-            sleep 5
+            echo "🔴 [TERDETEKSI] Stream terputus/lag/selesai! Mengulang otomatis dalam 2 detik..."
+            sleep 2
           done
           
