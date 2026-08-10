@@ -95,7 +95,7 @@ jobs:
               -rw_timeout 5000000 \
               -thread_queue_size 4096 -i "$VIDEO_URL" \
               -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.11:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]" \
               -map "[outv]" -map 0:a? \
               -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
