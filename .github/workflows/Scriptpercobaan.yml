@@ -1,4 +1,4 @@
-name: LIVE FIX AGUSTUS KHUSUS CHANNEL YANG SUSAH DI RELAY
+name: LIVE FIX AGUSTUS 2026 LOGO DI KIRI ATAS
 
 on:
   workflow_dispatch:
@@ -87,15 +87,13 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Auto-Kill & Anti-Nyandet..."
 
-            # EKSEKUSI FFMPEG:
-            # - Pembesaran audio 30x lipat via volume=30
-            # - Limiter alimiter=limit=0.95 untuk mencegah clipping/suara pecah
+            # EKSEKUSI FFMPEG LOGO POJOK KIRI ATAS:
             ffmpeg \
               -rw_timeout 5000000 \
               -thread_queue_size 4096 -i "$VIDEO_URL" \
               -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.10:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]; [0:a]volume=30,alimiter=limit=0.95[outa]" \
-              -map "[outv]" -map "[outa]" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=(W*0.02):(W*0.02):shortest=1[outv]" \
+              -map "[outv]" -map 0:a? \
               -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -b:a 128k -ar 44100 -ac 2 \
