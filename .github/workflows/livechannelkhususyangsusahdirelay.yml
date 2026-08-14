@@ -79,22 +79,24 @@ jobs:
             fi
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "❌ GAGAL MENDAPATKAN URL VIDEO! Menunggu 5 detik..."
+              echo "❌ GAGAL MENDAPATKAN URL VIDEO! Menunggu 5 detik sebelum coba lagi..."
               cat yt_error.log 2>/dev/null
               sleep 5
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Auto-Kill & Anti-Nyandet..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Auto-Kill, Reconnect Fix & Anti-Nyandet..."
 
             # EKSEKUSI FFMPEG KUNCI LAMA + LOKAL FIX:
+            # - "-reconnect 1 -reconnect_streamed 1" agar lancar lewat 7 menit
             # - Tanpa "-re" pada input video agar tidak underbuffer
             # - "-rw_timeout 5000000" (5s) jika internet lag/stuck, FFmpeg langsung EXIT
             # - "shortest=1" dari Script 1: jika video sumber habis/putus, FFmpeg langsung EXIT!
             ffmpeg \
+              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -reconnect_on_network_error 1 \
               -rw_timeout 5000000 \
-              -thread_queue_size 4096 -i "$VIDEO_URL" \
-              -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
+              -thread_queue_size 8192 -i "$VIDEO_URL" \
+              -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]" \
               -map "[outv]" -map 0:a? \
               -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
@@ -103,7 +105,7 @@ jobs:
               -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "🔴 [TERDETEKSI] Stream terputus/lag/selesai! Mengulang otomatis dalam 2 detik..."
+            echo "🔴 [TERDETEKSI] Stream terputus/lag/selesai! Mengulang otomatis tanpa batas dalam 2 detik..."
             sleep 2
           done
           
