@@ -1,4 +1,4 @@
-Name: LIVE FIX AGUSTUS 2026
+name: LIVE FIX AGUSTUS 2026
 
 on:
   workflow_dispatch:
