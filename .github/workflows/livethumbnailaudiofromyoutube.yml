@@ -58,7 +58,6 @@ jobs:
           # 3. Pengecekan File Logo
           LOGO_FILE="logoihya7tvagustus2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
-            # Fallback jika nama file logo berbeda
             LOGO_FILE="logoihyajuni2026.mp4"
           fi
 
@@ -68,20 +67,18 @@ jobs:
             exit 1
           fi
 
-          # User-Agent Safari iOS (Bypass 429 & Ramah Cookies)
           FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
           while true; do
             echo "--- [$(date)] Mengambil Stream Audio via Client iOS ---"
             
-            # Mengambil URL Audio saja (-f "ba/bestaudio")
+            # Tanpa filter -f "ba/bestaudio" agar meloloskan fetching URL
             AUDIO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=ios,mweb" \
-                                -f "ba/bestaudio" \
                                 -g "${{ github.event.inputs.link_audio }}" 2>yt_error.log)
 
             if [ -z "$AUDIO_URL" ]; then
@@ -89,20 +86,19 @@ jobs:
               AUDIO_URL=$(yt-dlp --force-ipv4 \
                                   --no-cache-dir \
                                   --extractor-args "youtube:player-client=tv_embedded" \
-                                  -f "ba/bestaudio" \
-                                  -g "${{ github.event.inputs.link_audio }}" 2>/devnull)
+                                  -g "${{ github.event.inputs.link_audio }}" 2>/dev/null)
             fi
 
             if [ -z "$AUDIO_URL" ]; then
               echo "❌ GAGAL MENDAPATKAN URL AUDIO! Menunggu 5 detik..."
-              cat yt_error.log 2>/devnull
+              cat yt_error.log 2>/dev/null
               sleep 5
               continue
             fi
 
             echo "🚀 AUDIO DITEMUKAN! Memulai FFmpeg dengan Thumbnail Statis & Overlay Logo..."
 
-            # EKSEKUSI FFMPEG
+            # EKSEKUSI FFMPEG (-map 1:a secara khusus hanya menarik track suara dari link YouTube)
             ffmpeg \
               -rw_timeout 5000000 \
               -loop 1 -r 30 -i thumbnail_input \
