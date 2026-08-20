@@ -1,0 +1,122 @@
+name: LIVE THUMBNAIL AUDIO FROM YOUTUBE FIX AGUSTUS 2026
+
+on:
+  workflow_dispatch:
+    inputs:
+      link_thumbnail:
+        description: 'Link Gambar/Thumbnail (misal: https://i.ytimg.com/vi_webp/...)'
+        required: true
+      link_audio:
+        description: 'Link YouTube Sumber Audio'
+        required: true
+      kunci_rtmp:
+        description: 'Stream Key YouTube Target'
+        required: true
+
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Install Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl wget
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
+
+      - name: 4. Jalankan Relay Streaming (Thumbnail + Audio YouTube)
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          set +e
+
+          # 1. Download Gambar Thumbnail
+          echo "📥 Mengunduh Gambar Thumbnail..."
+          curl -sL "${{ github.event.inputs.link_thumbnail }}" -o thumbnail_input
+          
+          if [ ! -s thumbnail_input ]; then
+            echo "❌ ERROR: Gagal mengunduh gambar thumbnail dari link yang diberikan!"
+            exit 1
+          fi
+
+          # 2. Persiapan Cookies YouTube
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
+          
+          # 3. Pengecekan File Logo
+          LOGO_FILE="logoihya7tvagustus2026.mp4"
+          if [ ! -f "$LOGO_FILE" ]; then
+            # Fallback jika nama file logo berbeda
+            LOGO_FILE="logoihyajuni2026.mp4"
+          fi
+
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "⚠️ ERROR: File logo tidak ditemukan!"
+            ls
+            exit 1
+          fi
+
+          # User-Agent Safari iOS (Bypass 429 & Ramah Cookies)
+          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
+
+          while true; do
+            echo "--- [$(date)] Mengambil Stream Audio via Client iOS ---"
+            
+            # Mengambil URL Audio saja (-f "ba/bestaudio")
+            AUDIO_URL=$(yt-dlp $COOKIE_ARG \
+                                --js-runtime node \
+                                --force-ipv4 \
+                                --no-cache-dir \
+                                --user-agent "$FIXED_UA" \
+                                --extractor-args "youtube:player-client=ios,mweb" \
+                                -f "ba/bestaudio" \
+                                -g "${{ github.event.inputs.link_audio }}" 2>yt_error.log)
+
+            if [ -z "$AUDIO_URL" ]; then
+              echo "⚠️ Client iOS gagal, mencoba Fallback Client TV..."
+              AUDIO_URL=$(yt-dlp --force-ipv4 \
+                                  --no-cache-dir \
+                                  --extractor-args "youtube:player-client=tv_embedded" \
+                                  -f "ba/bestaudio" \
+                                  -g "${{ github.event.inputs.link_audio }}" 2>/devnull)
+            fi
+
+            if [ -z "$AUDIO_URL" ]; then
+              echo "❌ GAGAL MENDAPATKAN URL AUDIO! Menunggu 5 detik..."
+              cat yt_error.log 2>/devnull
+              sleep 5
+              continue
+            fi
+
+            echo "🚀 AUDIO DITEMUKAN! Memulai FFmpeg dengan Thumbnail Statis & Overlay Logo..."
+
+            # EKSEKUSI FFMPEG
+            ffmpeg \
+              -rw_timeout 5000000 \
+              -loop 1 -r 30 -i thumbnail_input \
+              -thread_queue_size 4096 -i "$AUDIO_URL" \
+              -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,format=yuv420p[bg]; [2:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [bg][logo]overlay=W-w-(W*0.02):(W*0.02)[outv]" \
+              -map "[outv]" -map 1:a \
+              -c:v libx264 -preset ultrafast -tune stillimage -b:v 2500k -maxrate 3000k -bufsize 3000k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -b:a 128k -ar 44100 -ac 2 \
+              -flvflags no_duration_filesize \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            echo "🔴 [TERDETEKSI] Stream audio terputus/selesai! Mengulang otomatis dalam 2 detik..."
+            sleep 2
+          done
+          
