@@ -2,8 +2,8 @@ name: LIVE FIX AGUSTUS 2026
 
 on:
   schedule:
-    # 21:00 UTC sama dengan 04:00 WIB (UTC+7)
-    - cron: '0 21 * * *'
+    # 21:20 UTC sama dengan 04:20 WIB (UTC+7)
+    - cron: '20 21 * * *'
   workflow_dispatch:
     inputs:
       link_youtube:
@@ -122,3 +122,4 @@ jobs:
             echo "🔴 [TERDETEKSI] Stream terputus/lag/selesai! Mengulang otomatis dalam 2 detik..."
             sleep 2
           done
+          
