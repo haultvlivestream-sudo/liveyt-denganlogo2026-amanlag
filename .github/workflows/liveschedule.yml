@@ -1,24 +1,17 @@
-Name: LIVE FIX AGUSTUS 2026
+name: LIVE FIX AGUSTUS 2026 LOGO DI KIRI ATAS
 
 on:
   schedule:
-    # 21:20 UTC sama dengan 04:20 WIB (UTC+7)
-    - cron: '20 21 * * *'
+    # 17:15 UTC = 00:15 WIB (Setiap Hari Dini Hari)
+    - cron: '15 17 * * *'
   workflow_dispatch:
     inputs:
       link_youtube:
-        description: 'Link Video Sumber'
+        description: 'Link Video Sumber (Opsional jika menggunakan Secret)'
         required: false
-        default: 'https://youtube.com/@nabawitv/live'
       kunci_rtmp:
-        description: 'Stream Key YouTube'
+        description: 'Stream Key YouTube (Opsional jika menggunakan Secret)'
         required: false
-        default: 'szju-ryy4-e3qe-fx1j-axmx'
-
-# Variabel default untuk eksekusi otomatis via Cron Schedule
-env:
-  DEFAULT_LINK: 'https://youtube.com/@nabawitv/live'
-  DEFAULT_RTMP: 'szju-ryy4-e3qe-fx1j-axmx'
 
 jobs:
   streaming:
@@ -42,14 +35,17 @@ jobs:
       - name: 4. Jalankan Relay Streaming
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
-          INPUT_LINK: ${{ github.event.inputs.link_youtube }}
-          INPUT_RTMP: ${{ github.event.inputs.kunci_rtmp }}
+          # Jika input manual/Secrets kosong, gunakan URL & Stream Key default di bawah ini
+          LINK_YOUTUBE: ${{ inputs.link_youtube || secrets.LINK_YOUTUBE || 'https://www.youtube.com/live/CO1RGPKB8B8?si=gOTkzqiERLZm9BZ9' }}
+          KUNCI_RTMP: ${{ inputs.kunci_rtmp || secrets.KUNCI_RTMP || 'szju-ryy4-e3qe-fx1j-axmx' }}
         run: |
           set +e
 
-          # Menentukan link & stream key (Gunakan input manual jika ada, jika otomatis gunakan default)
-          TARGET_LINK="${INPUT_LINK:-$DEFAULT_LINK}"
-          TARGET_RTMP="${INPUT_RTMP:-$DEFAULT_RTMP}"
+          if [ -z "$LINK_YOUTUBE" ] || [ -z "$KUNCI_RTMP" ]; then
+            echo "❌ ERROR: LINK_YOUTUBE atau KUNCI_RTMP belum diisi!"
+            echo "Harap sediakan melalui input workflow manual atau daftarkan di Repository Secrets."
+            exit 1
+          fi
 
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
@@ -83,7 +79,7 @@ jobs:
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=ios,mweb" \
                                 -f "b/best" \
-                                -g "$TARGET_LINK" 2>yt_error.log)
+                                -g "$LINK_YOUTUBE" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
               echo "⚠️ Client iOS gagal, mencoba Fallback Client TV..."
@@ -91,7 +87,7 @@ jobs:
                                   --no-cache-dir \
                                   --extractor-args "youtube:player-client=tv_embedded" \
                                   -f "b/best" \
-                                  -g "$TARGET_LINK" 2>/dev/null)
+                                  -g "$LINK_YOUTUBE" 2>/dev/null)
             fi
 
             if [ -z "$VIDEO_URL" ]; then
@@ -103,21 +99,18 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Auto-Kill & Anti-Nyandet..."
 
-            # EKSEKUSI FFMPEG:
-            # - Ukuran logo: 0.14
-            # - Posisi logo: Kiri Atas
-            # - Jarak dari tepi (Margin X & Y): 0.02
+            # EKSEKUSI FFMPEG LOGO POJOK KIRI ATAS:
             ffmpeg \
               -rw_timeout 5000000 \
               -thread_queue_size 4096 -i "$VIDEO_URL" \
               -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.14:-1[logo]; [0:v][logo]overlay=(W*0.02):(W*0.02):shortest=1[outv]" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=(W*0.02):(W*0.02):shortest=1[outv]" \
               -map "[outv]" -map 0:a? \
               -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -b:a 128k -ar 44100 -ac 2 \
               -flvflags no_duration_filesize \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/$TARGET_RTMP"
+              -f flv "rtmp://a.rtmp.youtube.com/live2/$KUNCI_RTMP"
 
             echo "🔴 [TERDETEKSI] Stream terputus/lag/selesai! Mengulang otomatis dalam 2 detik..."
             sleep 2
