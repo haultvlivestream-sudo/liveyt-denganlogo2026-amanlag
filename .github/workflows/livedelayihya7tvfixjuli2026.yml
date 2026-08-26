@@ -1,4 +1,4 @@
-name: Live Delay Fix Juli 2026 IHYA' 7 TV 
+name: LIVE FIX DELAY AGUSTUS 2026
 
 on:
   workflow_dispatch:
@@ -33,7 +33,6 @@ jobs:
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          # set -e memastikan script LANGSUNG STOP jika ada 1 perintah yang gagal/error
           set -e
 
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
@@ -43,41 +42,64 @@ jobs:
             COOKIE_ARG=""
           fi
           
-          LOGO_FILE="logoihyajuni2026.mp4"
+          LOGO_FILE="logoihya7tvagustus2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
-            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
+            # Fallback jika nama file logo berbeda
+            LOGO_FILE="logoihyajuni2026.mp4"
+          fi
+
+          if [ ! -f "$LOGO_FILE" ]; then
+            echo "ERROR: File logo tidak ditemukan!"
             ls
             exit 1
           fi
 
-          FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+          # User-Agent Safari iOS (Bypass 429 & Ramah Cookies)
+          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
-          echo "--- [$(date)] Mencari Kualitas Tertinggi via Sesi Android ---"
+          echo "--- [$(date)] Mengambil Stream via Client iOS ---"
           
-          # Ambil URL Video
           VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                               --js-runtime node \
                               --force-ipv4 \
                               --no-cache-dir \
                               --user-agent "$FIXED_UA" \
-                              --extractor-args "youtube:player-client=android,web" \
-                              -f "bestvideo+bestaudio/best" \
-                              -g "${{ github.event.inputs.link_youtube }}")
+                              --extractor-args "youtube:player-client=ios,mweb" \
+                              -f "b/best" \
+                              -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log) || true
 
           if [ -z "$VIDEO_URL" ]; then
-            echo "❌ GAGAL MENDAPATKAN URL VIDEO! Script dihentikan."
+            echo "⚠️ Client iOS gagal, mencoba Fallback Client TV..."
+            VIDEO_URL=$(yt-dlp --force-ipv4 \
+                                --no-cache-dir \
+                                --extractor-args "youtube:player-client=tv_embedded" \
+                                -f "b/best" \
+                                -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null) || true
+          fi
+
+          if [ -z "$VIDEO_URL" ]; then
+            echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
+            cat yt_error.log 2>/dev/null
             exit 1
           fi
 
-          echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg..."
+          echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Streaming..."
 
-          # Parameter FFmpeg disesuaikan dengan skala logo persis seperti script pertama
-          ffmpeg -xerror -re -i "$VIDEO_URL" \
-            -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex "[0:v]scale=1920:1080[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=1920*0.12:-1[logo]; [main][logo]overlay=W-w-(W*0.02):(W*0.02)" \
-            -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
+          # EKSEKUSI FFMPEG:
+          # - Skala logo: 0.11 (11%)
+          # - Offset kanan: 0.02 (2%)
+          # - Offset atas: 0.02 (2%)
+          ffmpeg \
+            -rw_timeout 5000000 \
+            -thread_queue_size 4096 -i "$VIDEO_URL" \
+            -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
+            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.11:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]" \
+            -map "[outv]" -map 0:a? \
+            -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-            -c:a aac -ar 44100 -b:a 128k \
+            -c:a aac -b:a 128k -ar 44100 -ac 2 \
+            -flvflags no_duration_filesize \
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            
+          echo "🔴 Stream selesai atau terputus. Proses dihentikan."
+          
