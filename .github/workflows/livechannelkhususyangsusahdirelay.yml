@@ -17,28 +17,28 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Install Node.js & Python
+      - name: 2. Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: 3. Install Tools & Streamlink
+      - name: 3. Install Tools & Latest yt-dlp
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl python3-pip
-          pip3 install --upgrade streamlink
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
 
-      - name: 4. Jalankan Relay Streaming (Fix Streamlink Syntax)
+      - name: 4. Jalankan Relay Streaming (Anti Bot & Anti Login)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           set +e
 
-          USE_COOKIE=0
+          COOKIE_ARG=""
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
-            USE_COOKIE=1
+            COOKIE_ARG="--cookies cookies.txt"
           fi
           
           LOGO_FILE="logoihya7tvagustus2026.mp4"
@@ -52,42 +52,30 @@ jobs:
             exit 1
           fi
 
-          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
+          FIXED_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
           while true; do
-            echo "--- [$(date)] Memulai Stream via Streamlink Engine ---"
+            echo "--- [$(date)] Memulai Stream via yt-dlp Bypass Engine ---"
 
-            if [ "$USE_COOKIE" -eq 1 ]; then
-              streamlink --http-cookies cookies.txt \
-                --http-header "User-Agent=$FIXED_UA" \
-                --http-header "Referer=https://www.youtube.com/" \
-                --stdout "${{ github.event.inputs.link_youtube }}" 720p,best | \
-              ffmpeg \
-                -thread_queue_size 8192 -i pipe:0 \
-                -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
-                -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
-                -map "[outv]" -map 0:a? \
-                -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3000k -maxrate 3500k -bufsize 3500k \
-                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-                -c:a aac -b:a 128k -ar 44100 -ac 2 \
-                -flvflags no_duration_filesize \
-                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
-            else
-              streamlink \
-                --http-header "User-Agent=$FIXED_UA" \
-                --http-header "Referer=https://www.youtube.com/" \
-                --stdout "${{ github.event.inputs.link_youtube }}" 720p,best | \
-              ffmpeg \
-                -thread_queue_size 8192 -i pipe:0 \
-                -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
-                -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
-                -map "[outv]" -map 0:a? \
-                -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3000k -maxrate 3500k -bufsize 3500k \
-                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-                -c:a aac -b:a 128k -ar 44100 -ac 2 \
-                -flvflags no_duration_filesize \
-                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
-            fi
+            # Menggunakan extractor TV/Android Embedded untuk membypass LOGIN_REQUIRED Bot Protection
+            yt-dlp $COOKIE_ARG \
+              --js-runtime node \
+              --force-ipv4 \
+              --no-cache-dir \
+              --user-agent "$FIXED_UA" \
+              --extractor-args "youtube:player-client=tv_embedded,web_embedded,ios" \
+              -f "best[ext=mp4]/best" \
+              -o - "${{ github.event.inputs.link_youtube }}" | \
+            ffmpeg \
+              -thread_queue_size 8192 -i pipe:0 \
+              -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
+              -map "[outv]" -map 0:a? \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3000k -maxrate 3500k -bufsize 3500k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -b:a 128k -ar 44100 -ac 2 \
+              -flvflags no_duration_filesize \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
             echo "🔴 Stream terputus, mengulang dalam 5 detik..."
             sleep 5
