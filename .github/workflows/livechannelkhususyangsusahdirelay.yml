@@ -29,16 +29,16 @@ jobs:
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      - name: 4. Jalankan Relay Streaming (Ultimate Streamlink Mode)
+      - name: 4. Jalankan Relay Streaming (Fix Streamlink Syntax)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           set +e
 
-          STREAMLINK_COOKIE=""
+          USE_COOKIE=0
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
-            STREAMLINK_COOKIE="--http-cookie-file cookies.txt"
+            USE_COOKIE=1
           fi
           
           LOGO_FILE="logoihya7tvagustus2026.mp4"
@@ -48,6 +48,7 @@ jobs:
 
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File logo tidak ditemukan!"
+            ls
             exit 1
           fi
 
@@ -56,21 +57,37 @@ jobs:
           while true; do
             echo "--- [$(date)] Memulai Stream via Streamlink Engine ---"
 
-            # Streamlink menangani pembaruan HLS token otomatis tanpa pernah kena 429
-            streamlink $STREAMLINK_COOKIE \
-              --http-header "User-Agent=$FIXED_UA" \
-              --http-header "Referer=https://www.youtube.com/" \
-              --stdout "${{ github.event.inputs.link_youtube }}" 720p,best | \
-            ffmpeg \
-              -thread_queue_size 8192 -i pipe:0 \
-              -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
-              -map "[outv]" -map 0:a? \
-              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3000k -maxrate 3500k -bufsize 3500k \
-              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -b:a 128k -ar 44100 -ac 2 \
-              -flvflags no_duration_filesize \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            if [ "$USE_COOKIE" -eq 1 ]; then
+              streamlink --http-cookies cookies.txt \
+                --http-header "User-Agent=$FIXED_UA" \
+                --http-header "Referer=https://www.youtube.com/" \
+                --stdout "${{ github.event.inputs.link_youtube }}" 720p,best | \
+              ffmpeg \
+                -thread_queue_size 8192 -i pipe:0 \
+                -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
+                -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
+                -map "[outv]" -map 0:a? \
+                -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3000k -maxrate 3500k -bufsize 3500k \
+                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -b:a 128k -ar 44100 -ac 2 \
+                -flvflags no_duration_filesize \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            else
+              streamlink \
+                --http-header "User-Agent=$FIXED_UA" \
+                --http-header "Referer=https://www.youtube.com/" \
+                --stdout "${{ github.event.inputs.link_youtube }}" 720p,best | \
+              ffmpeg \
+                -thread_queue_size 8192 -i pipe:0 \
+                -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
+                -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
+                -map "[outv]" -map 0:a? \
+                -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3000k -maxrate 3500k -bufsize 3500k \
+                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -b:a 128k -ar 44100 -ac 2 \
+                -flvflags no_duration_filesize \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            fi
 
             echo "🔴 Stream terputus, mengulang dalam 5 detik..."
             sleep 5
