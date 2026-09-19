@@ -44,7 +44,6 @@ jobs:
           
           LOGO_FILE="logoihya7tvagustus2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
-            # Fallback jika nama file logo berbeda
             LOGO_FILE="logoihyajuni2026.mp4"
           fi
 
@@ -54,7 +53,6 @@ jobs:
             exit 1
           fi
 
-          # User-Agent Safari iOS (Bypass 429 & Ramah Cookies)
           FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
           while true; do
@@ -66,14 +64,14 @@ jobs:
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=ios,mweb" \
-                                -f "b/best" \
+                                -f "b/best[ext=mp4]/best" \
                                 -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "⚠️ Client iOS gagal, mencoba Fallback Client TV..."
-              VIDEO_URL=$(yt-dlp --force-ipv4 \
+              echo "⚠️ Client iOS gagal, mencoba Fallback Client Web..."
+              VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                  --force-ipv4 \
                                   --no-cache-dir \
-                                  --extractor-args "youtube:player-client=tv_embedded" \
                                   -f "b/best" \
                                   -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
             fi
@@ -87,25 +85,20 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Auto-Kill, Reconnect Fix & Anti-Nyandet..."
 
-            # EKSEKUSI FFMPEG KUNCI LAMA + LOKAL FIX:
-            # - "-reconnect 1 -reconnect_streamed 1" agar lancar lewat 7 menit
-            # - Tanpa "-re" pada input video agar tidak underbuffer
-            # - "-rw_timeout 5000000" (5s) jika internet lag/stuck, FFmpeg langsung EXIT
-            # - "shortest=1" dari Script 1: jika video sumber habis/putus, FFmpeg langsung EXIT!
             ffmpeg \
               -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -reconnect_on_network_error 1 \
-              -rw_timeout 5000000 \
+              -rw_timeout 10000000 \
               -thread_queue_size 8192 -i "$VIDEO_URL" \
               -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]" \
+              -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
               -map "[outv]" -map 0:a? \
-              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3000k -maxrate 3500k -bufsize 3500k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -b:a 128k -ar 44100 -ac 2 \
               -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "🔴 [TERDETEKSI] Stream terputus/lag/selesai! Mengulang otomatis tanpa batas dalam 2 detik..."
-            sleep 2
+            echo "🔴 [TERDETEKSI] Stream terputus/lag/selesai! Mengulang otomatis tanpa batas dalam 3 detik..."
+            sleep 3
           done
           
