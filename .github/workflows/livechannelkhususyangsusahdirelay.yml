@@ -17,29 +17,28 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Install Node.js
+      - name: 2. Install Node.js & Python
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: 3. Install Tools
+      - name: 3. Install Tools & Streamlink
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl python3-pip
+          pip3 install --upgrade streamlink
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          yt-dlp -U
 
-      - name: 4. Jalankan Relay Streaming
+      - name: 4. Jalankan Relay Streaming (Ultimate Streamlink Mode)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           set +e
 
+          STREAMLINK_COOKIE=""
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
-            COOKIE_ARG="--cookies cookies.txt"
-          else
-            COOKIE_ARG=""
+            STREAMLINK_COOKIE="--http-cookie-file cookies.txt"
           fi
           
           LOGO_FILE="logoihya7tvagustus2026.mp4"
@@ -49,50 +48,21 @@ jobs:
 
           if [ ! -f "$LOGO_FILE" ]; then
             echo "ERROR: File logo tidak ditemukan!"
-            ls
             exit 1
           fi
 
           FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
           while true; do
-            echo "--- [$(date)] Mengambil Stream HLS Live YouTube ---"
-            
-            # Format 96/95/94/93 memaksa yt-dlp mengambil HLS Manifest (.m3u8) resmi YouTube Live
-            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
-                                --js-runtime node \
-                                --force-ipv4 \
-                                --no-cache-dir \
-                                --user-agent "$FIXED_UA" \
-                                --extractor-args "youtube:player-client=ios,mweb" \
-                                -f "96/95/94/93/b/best" \
-                                -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
+            echo "--- [$(date)] Memulai Stream via Streamlink Engine ---"
 
-            if [ -z "$VIDEO_URL" ]; then
-              echo "⚠️ Client iOS gagal, mencoba Fallback Web Manifest..."
-              VIDEO_URL=$(yt-dlp $COOKIE_ARG \
-                                  --force-ipv4 \
-                                  --no-cache-dir \
-                                  -f "96/95/94/93/b/best" \
-                                  -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
-            fi
-
-            if [ -z "$VIDEO_URL" ]; then
-              echo "❌ GAGAL MENDAPATKAN URL VIDEO! Menunggu 5 detik..."
-              cat yt_error.log 2>/dev/null
-              sleep 5
-              continue
-            fi
-
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Live Relay..."
-
+            # Streamlink menangani pembaruan HLS token otomatis tanpa pernah kena 429
+            streamlink $STREAMLINK_COOKIE \
+              --http-header "User-Agent=$FIXED_UA" \
+              --http-header "Referer=https://www.youtube.com/" \
+              --stdout "${{ github.event.inputs.link_youtube }}" 720p,best | \
             ffmpeg \
-              -user_agent "$FIXED_UA" \
-              -headers "Referer: https://www.youtube.com/\r\n" \
-              -multiple_requests 1 \
-              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -reconnect_on_network_error 1 \
-              -rw_timeout 15000000 \
-              -thread_queue_size 8192 -i "$VIDEO_URL" \
+              -thread_queue_size 8192 -i pipe:0 \
               -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
               -map "[outv]" -map 0:a? \
@@ -102,7 +72,7 @@ jobs:
               -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "🔴 Stream terputus atau perlu refresh token! Mengulang dalam 3 detik..."
-            sleep 3
+            echo "🔴 Stream terputus, mengulang dalam 5 detik..."
+            sleep 5
           done
           
