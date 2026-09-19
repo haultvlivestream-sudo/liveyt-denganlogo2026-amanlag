@@ -56,38 +56,42 @@ jobs:
           FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
           while true; do
-            echo "--- [$(date)] Mengambil Stream via Client iOS (Khusus Channel Susah Relay) ---"
+            echo "--- [$(date)] Mengambil Stream HLS Live YouTube ---"
             
+            # Format 96/95/94/93 memaksa yt-dlp mengambil HLS Manifest (.m3u8) resmi YouTube Live
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=ios,mweb" \
-                                -f "b/best[ext=mp4]/best" \
+                                -f "96/95/94/93/b/best" \
                                 -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "⚠️ Client iOS gagal, mencoba Fallback Client Web..."
+              echo "⚠️ Client iOS gagal, mencoba Fallback Web Manifest..."
               VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                   --force-ipv4 \
                                   --no-cache-dir \
-                                  -f "b/best" \
+                                  -f "96/95/94/93/b/best" \
                                   -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
             fi
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "❌ GAGAL MENDAPATKAN URL VIDEO! Menunggu 5 detik sebelum coba lagi..."
+              echo "❌ GAGAL MENDAPATKAN URL VIDEO! Menunggu 5 detik..."
               cat yt_error.log 2>/dev/null
               sleep 5
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Auto-Kill, Reconnect Fix & Anti-Nyandet..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Live Relay..."
 
             ffmpeg \
+              -user_agent "$FIXED_UA" \
+              -headers "Referer: https://www.youtube.com/\r\n" \
+              -multiple_requests 1 \
               -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -reconnect_on_network_error 1 \
-              -rw_timeout 10000000 \
+              -rw_timeout 15000000 \
               -thread_queue_size 8192 -i "$VIDEO_URL" \
               -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
               -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(1280-iw)/2:(720-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=150:-1[logo_scaled]; [main][logo_scaled]overlay=W-w-20:20[outv]" \
@@ -98,7 +102,7 @@ jobs:
               -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "🔴 [TERDETEKSI] Stream terputus/lag/selesai! Mengulang otomatis tanpa batas dalam 3 detik..."
+            echo "🔴 Stream terputus atau perlu refresh token! Mengulang dalam 3 detik..."
             sleep 3
           done
           
