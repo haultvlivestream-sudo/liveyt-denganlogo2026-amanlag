@@ -35,7 +35,6 @@ jobs:
             echo "✅ Status: Secret FB_COOKIES TERDETEKSI dan akan digunakan."
           else
             echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
-            echo "Jika link Facebook Anda terkena login wall/private, pastikan Anda mengisi secrets FB_COOKIES."
           fi
 
       - name: 5. Jalankan Relay Streaming Real-Time
@@ -44,7 +43,6 @@ jobs:
         run: |
           set +e
 
-          # Menyiapkan file cookies jika tersedia
           if [ -n "$FB_COOKIES" ] && [ "$FB_COOKIES" != "KOSONG" ]; then
             echo "$FB_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
@@ -64,14 +62,14 @@ jobs:
             echo "--- [$(date)] Mengambil Stream dari Facebook ---"
             echo "=========================================================="
             
-            # Mendapatkan URL Video/Live dari Facebook
+            # Ambil format video + audio gabungan terbaik
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --concurrent-fragments 5 \
                                 --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-                                -f "b/best/bv*+ba*" \
-                                -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log)
+                                -f "b/bestvideo+bestaudio/best" \
+                                -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log | head -n 1)
 
             if [ -z "$VIDEO_URL" ]; then
               echo "❌ GAGAL MENDAPATKAN URL VIDEO FACEBOOK!"
@@ -85,14 +83,15 @@ jobs:
 
             echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay..."
 
-            # Menjalankan FFmpeg dengan Reconnect Flag & Filter Resolusi + Logo Proporsional
+            # Perbaikan FFmpeg: Ringan (ultrafast), Logo Proporsional, Audio Sync & Auto-Reconnect
             ffmpeg \
               -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
               -rw_timeout 15000000 \
-              -re -i "$VIDEO_URL" \
+              -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale='min(1920,iw)':-2[src]; [1:v]colorkey=0x006900:0.1:0.1[logoclean]; [logoclean][src]scale2ref=w='main_w*0.08':h='-1'[logo][main]; [main][logo]overlay=W-w-(W*0.03):(W*0.03)" \
-              -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
+              -filter_complex "[0:v]scale='min(1920,iw)':-2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.06:-1[logo]; [main][logo]overlay=W-w-(W*0.03):(W*0.03)[outv]" \
+              -map "[outv]" -map 0:a? \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4500k -maxrate 5000k -bufsize 10000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
