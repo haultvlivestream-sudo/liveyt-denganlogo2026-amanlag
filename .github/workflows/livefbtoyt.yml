@@ -1,4 +1,4 @@
-name: Live Fix September 2026 FB to YT IHYA' 7 TV 
+name: Live Streaming Fix Sept 2026 FB to YT IHYA' 7 TV 
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 3. Install Tools
+      - name: 3. Install Tools (FFmpeg & yt-dlp Terbaru)
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
@@ -35,15 +35,16 @@ jobs:
             echo "✅ Status: Secret FB_COOKIES TERDETEKSI dan akan digunakan."
           else
             echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
-            echo "Jika link Facebook Anda terkena login wall, pastikan Anda sudah mengisi secrets FB_COOKIES di setting repository."
+            echo "Jika link Facebook Anda terkena login wall/private, pastikan Anda mengisi secrets FB_COOKIES."
           fi
 
-      - name: 5. Jalankan Relay Streaming
+      - name: 5. Jalankan Relay Streaming Real-Time
         env:
           FB_COOKIES: ${{ secrets.FB_COOKIES }}
         run: |
           set +e
 
+          # Menyiapkan file cookies jika tersedia
           if [ -n "$FB_COOKIES" ] && [ "$FB_COOKIES" != "KOSONG" ]; then
             echo "$FB_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
@@ -53,19 +54,23 @@ jobs:
           
           LOGO_FILE="logoihyajuni2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
-            echo "ERROR: File $LOGO_FILE tidak ditemukan!"
-            ls
+            echo "❌ ERROR: File $LOGO_FILE tidak ditemukan di repository!"
+            ls -la
             exit 1
           fi
 
           while true; do
+            echo "=========================================================="
             echo "--- [$(date)] Mengambil Stream dari Facebook ---"
+            echo "=========================================================="
             
-            # Menjalankan yt-dlp untuk mengambil link dari Facebook menggunakan cookies jika tersedia
+            # Mendapatkan URL Video/Live dari Facebook
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --force-ipv4 \
                                 --no-cache-dir \
-                                -f "b" \
+                                --concurrent-fragments 5 \
+                                --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+                                -f "b/best/bv*+ba*" \
                                 -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -78,18 +83,21 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg..."
+            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay..."
 
-            ffmpeg -re -i "$VIDEO_URL" \
+            # Menjalankan FFmpeg dengan Reconnect Flag & Filter Resolusi + Logo Proporsional
+            ffmpeg \
+              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
+              -rw_timeout 15000000 \
+              -re -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.06:-1[logo]; [0:v][logo]overlay=W-w-(W*0.03):(W*0.03)" \
+              -filter_complex "[0:v]scale='min(1920,iw)':-2[src]; [1:v]colorkey=0x006900:0.1:0.1[logoclean]; [logoclean][src]scale2ref=w='main_w*0.08':h='-1'[logo][main]; [main][logo]overlay=W-w-(W*0.03):(W*0.03)" \
               -c:v libx264 -preset superfast -b:v 6000k -maxrate 8000k -bufsize 12000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus. Mengulang kembali dalam 10 detik..."
+            echo "⚠️ Stream terputus atau selesai. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
-
           
