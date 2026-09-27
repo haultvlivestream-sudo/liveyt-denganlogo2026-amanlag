@@ -1,4 +1,4 @@
-name: Live Streaming Fix Sept 2026 FB to YT IHYA' 7 TV 
+name: Live Streaming Fix Sept 2026 FB to YT IHYA' 7 TV Ultra HD
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
             echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
           fi
 
-      - name: 5. Jalankan Relay Streaming Real-Time (HD & Tajam)
+      - name: 5. Jalankan Relay Streaming Real-Time (Ultra HD 1080p Sharp & Logo Konsisten)
         env:
           FB_COOKIES: ${{ secrets.FB_COOKIES }}
         run: |
@@ -59,16 +59,15 @@ jobs:
 
           while true; do
             echo "=========================================================="
-            echo "--- [$(date)] Mengambil Stream HD dari Facebook ---"
+            echo "--- [$(date)] Mengambil Stream Terbaik dari Facebook ---"
             echo "=========================================================="
             
-            # Memaksa yt-dlp mengambil format video + audio tertinggi
+            # Mengambil URL stream terbaik dari Facebook
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --force-ipv4 \
                                 --no-cache-dir \
-                                --concurrent-fragments 5 \
-                                --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-                                -f "bestvideo+bestaudio/b/best" \
+                                --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+                                -f "b/bestvideo+bestaudio/best" \
                                 -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log | head -n 1)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -81,17 +80,22 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Ultra HD Sharpness)..."
+            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Ultra HD 1080p)..."
 
-            # Perubahan Utama: Scaling Lanczos + Unsharp Filter + Profile High & Bitrate 6500k
+            # PERBAIKAN FILTER COMPLEX:
+            # 1. Video Utama Dipaksa Skala 1920x1080 (Pas & Konsisten di Semua Resolusi FB).
+            # 2. Ditambahkan Filter Penajam (unsharp=lx=5:ly=5:la=1.2).
+            # 3. Logo Di-scale dengan Ukuran Tetap (Lebar 130px) agar TIDAK BERUBAH UKURAN.
+            
             ffmpeg \
               -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
               -rw_timeout 15000000 \
               -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale='min(1920,iw)':-2:flags=lanczos,unsharp=5:5:1.0:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.06:-1[logo]; [main][logo]overlay=W-w-(W*0.03):(W*0.03)[outv]" \
+              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,flags=lanczos,unsharp=5:5:1.2:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=130:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
               -map "[outv]" -map 0:a? \
-              -c:v libx264 -preset superfast -profile:v high -level 4.1 -b:v 6500k -maxrate 8000k -bufsize 12000k \
+              -c:v libx264 -preset superfast -profile:v high -level 4.2 \
+              -b:v 8000k -maxrate 9000k -bufsize 14000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
