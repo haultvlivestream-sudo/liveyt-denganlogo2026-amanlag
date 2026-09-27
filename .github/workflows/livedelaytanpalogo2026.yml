@@ -74,6 +74,8 @@ jobs:
           echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Relay..."
 
           ffmpeg \
+            -user_agent "$FIXED_UA" \
+            -headers "Referer: https://www.youtube.com/" \
             -thread_queue_size 4096 -i "$VIDEO_URL" \
             -map 0:v:0 -map 0:a:0? \
             -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
@@ -81,3 +83,4 @@ jobs:
             -c:a aac -b:a 128k -ar 44100 -ac 2 \
             -flvflags no_duration_filesize \
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            
