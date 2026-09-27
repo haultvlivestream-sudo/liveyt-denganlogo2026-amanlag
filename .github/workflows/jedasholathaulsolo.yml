@@ -1,0 +1,49 @@
+name: JEDA SHOLAT HAUL SOLO 2026
+
+on:
+  workflow_dispatch:
+    inputs:
+      kunci_rtmp:
+        description: 'Stream Key YouTube'
+        required: true
+
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install FFmpeg
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: 3. Jalankan Streaming Loop
+        run: |
+          set +e
+
+          VIDEO_FILE="jedasholathaulsolo2026.mp4"
+
+          # Cek keberadaan file video
+          if [ ! -f "$VIDEO_FILE" ]; then
+            echo "❌ ERROR: File $VIDEO_FILE tidak ditemukan di repository!"
+            ls -la
+            exit 1
+          fi
+
+          echo "🚀 Memulai Live Streaming Loop dari file $VIDEO_FILE..."
+
+          # EKSEKUSI FFMPEG
+          # -stream_loop -1  : Memutar file video terus-menerus tanpa henti
+          # -re             : Membaca input sesuai kecepatan framerate asli (real-time stream)
+          # Rescale ke 1080p : scale=1920:1080 (memastikan output HD 1080p mulus)
+          
+          ffmpeg -re -stream_loop -1 -i "$VIDEO_FILE" \
+            -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,format=yuv420p" \
+            -c:v libx264 -preset superfast -b:v 6000k -maxrate 6000k -bufsize 12000k \
+            -g 60 -keyint_min 60 -sc_threshold 0 \
+            -c:a aac -b:a 128k -ar 44100 -ac 2 \
+            -flvflags no_duration_filesize \
+            -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+
+            
