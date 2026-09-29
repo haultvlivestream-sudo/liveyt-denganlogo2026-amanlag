@@ -1,4 +1,4 @@
-Name: LIVE CCTV Fix Khusus FLV Sept 2026
+name: LIVE CCTV Fix Khusus FLV Sept 2026
 
 on:
   workflow_dispatch:
