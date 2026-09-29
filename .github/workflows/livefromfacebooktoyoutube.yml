@@ -37,7 +37,7 @@ jobs:
             echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
           fi
 
-      - name: 5. Jalankan Relay Streaming Real-Time (Ultra HD 1080p Sharp & Logo Konsisten)
+      - name: 5. Jalankan Relay Streaming Real-Time (Full HD 1080p Sharp & Logo Konsisten)
         env:
           FB_COOKIES: ${{ secrets.FB_COOKIES }}
         run: |
@@ -62,7 +62,7 @@ jobs:
             echo "--- [$(date)] Mengambil Stream Terbaik dari Facebook ---"
             echo "=========================================================="
             
-            # Mengambil URL stream terbaik dari Facebook
+            # Ambil stream dengan format terbaik yang tersedia
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --force-ipv4 \
                                 --no-cache-dir \
@@ -82,17 +82,18 @@ jobs:
 
             echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Ultra HD 1080p)..."
 
-            # PERBAIKAN FILTER COMPLEX:
-            # 1. Video Utama Dipaksa Skala 1920x1080 (Pas & Konsisten di Semua Resolusi FB).
-            # 2. Ditambahkan Filter Penajam (unsharp=lx=5:ly=5:la=1.2).
-            # 3. Logo Di-scale dengan Ukuran Tetap (Lebar 130px) agar TIDAK BERUBAH UKURAN.
+            # FILTER_COMPLEX TERUJI:
+            # 1. scale=1920:1080 dengan flags=lanczos digabung menggunakan titik dua (:) [LULUS ERROR]
+            # 2. pad=1920:1080 untuk menjaga rasio video tetap pas di kanvas 1080p
+            # 3. unsharp=5:5:1.2 untuk penajaman gambar halus
+            # 4. Logo di-scale fix 140px agar ukuran SELALU SAMA di semua kondisi
             
             ffmpeg \
               -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
               -rw_timeout 15000000 \
               -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,flags=lanczos,unsharp=5:5:1.2:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=130:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
+              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:1.2:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
               -map "[outv]" -map 0:a? \
               -c:v libx264 -preset superfast -profile:v high -level 4.2 \
               -b:v 8000k -maxrate 9000k -bufsize 14000k \
