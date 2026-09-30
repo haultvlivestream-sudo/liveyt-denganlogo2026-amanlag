@@ -27,8 +27,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          # Mengabaikan error jika yt-dlp -U gagal kena rate limit GitHub
-          yt-dlp -U || echo "⚠️ Warning: Update yt-dlp dilewati karena Rate Limit, menggunakan versi terunduh."
+          yt-dlp -U || echo "⚠️ Warning: Update yt-dlp dilewati karena Rate Limit."
 
       - name: 4. Cek dan Deteksi Secret FB_COOKIES
         run: |
@@ -38,7 +37,7 @@ jobs:
             echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
           fi
 
-      - name: 5. Jalankan Relay Streaming Real-Time (Full HD 1080p Synchronized)
+      - name: 5. Jalankan Relay Streaming Real-Time (Full HD 1080p Normal Speed)
         env:
           FB_COOKIES: ${{ secrets.FB_COOKIES }}
         run: |
@@ -84,36 +83,32 @@ jobs:
             VIDEO_URL=$(echo "$URLS" | sed -n '1p')
             AUDIO_URL=$(echo "$URLS" | sed -n '2p')
 
-            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Audio/Video Sync Lock)..."
+            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay Kecepatan Normal (1.0x)..."
 
             if [ -n "$AUDIO_URL" ]; then
-              # Jika Video & Audio Terpisah dari Facebook
+              # Jika Video & Audio Terpisah
               ffmpeg \
-                -use_wallclock_as_timestamps 1 \
-                -thread_queue_size 1024 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
-                -thread_queue_size 1024 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$AUDIO_URL" \
+                -re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
+                -re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$AUDIO_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
-                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]; [1:a]aresample=async=1000:min_hard_comp=0.100000:first_pts=0[outa]" \
-                -map "[outv]" -map "[outa]" \
+                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
+                -map "[outv]" -map 1:a \
                 -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
                 -b:v 4500k -maxrate 5000k -bufsize 10000k \
-                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -pix_fmt yuv420p -r 30 -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
-                -fps_mode passthrough \
                 -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
             else
               # Jika Video & Audio Gabung
               ffmpeg \
-                -use_wallclock_as_timestamps 1 \
-                -thread_queue_size 1024 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
+                -re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
-                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]; [0:a]aresample=async=1000:min_hard_comp=0.100000:first_pts=0[outa]" \
-                -map "[outv]" -map "[outa]" \
+                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
+                -map "[outv]" -map 0:a? \
                 -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
                 -b:v 4500k -maxrate 5000k -bufsize 10000k \
-                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -pix_fmt yuv420p -r 30 -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
-                -fps_mode passthrough \
                 -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
             fi
 
