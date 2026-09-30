@@ -37,7 +37,7 @@ jobs:
             echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
           fi
 
-      - name: 5. Jalankan Relay Streaming Real-Time (Full HD 1080p Max)
+      - name: 5. Jalankan Relay Streaming Real-Time (Smooth Audio & Video Anti-Stutter)
         env:
           FB_COOKIES: ${{ secrets.FB_COOKIES }}
         run: |
@@ -59,15 +59,15 @@ jobs:
 
           while true; do
             echo "=========================================================="
-            echo "--- [$(date)] Mengambil Stream HD Terbaik dari Facebook ---"
+            echo "--- [$(date)] Mengambil Stream Gabungan (Muxed) dari Facebook ---"
             echo "=========================================================="
             
+            # Format diubah ke 'b/best' agar Video & Audio berada dalam 1 URL m3u8/mpd yang sama
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --force-ipv4 \
                                 --no-cache-dir \
                                 --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
-                                -f "bestvideo+bestaudio/best" \
-                                -S "res:1080,res:720,fps,br" \
+                                -f "b/best" \
                                 -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log | head -n 1)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -80,23 +80,22 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Stream #0:2 1080p Real)..."
+            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Anti-Skip & Anti-Lag)..."
 
             ffmpeg \
-              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
+              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
               -rw_timeout 15000000 \
-              -i "$VIDEO_URL" \
-              -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:2]scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:1.5:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
-              -map "[outv]" -map 0:3? \
-              -c:v libx264 -preset superfast -profile:v high -level 4.2 \
-              -b:v 9000k -maxrate 10000k -bufsize 15000k \
+              -thread_queue_size 4096 -i "$VIDEO_URL" \
+              -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,unsharp=3:3:1.0:3:3:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=170:-1[logo]; [main][logo]overlay=W-w-45:45[outv]; [0:a]dynaudnorm=f=150:g=15:m=6.0[outa]" \
+              -map "[outv]" -map "[outa]" \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4500k -maxrate 6000k -bufsize 8000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
+              -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Stream terputus atau selesai. Mengulang kembali dalam 10 detik..."
-            sleep 10
+            echo "⚠️ Stream terputus atau selesai. Mengulang kembali dalam 5 detik..."
+            sleep 5
           done
           
-
