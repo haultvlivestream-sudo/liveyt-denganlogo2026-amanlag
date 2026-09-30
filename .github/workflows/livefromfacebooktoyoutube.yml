@@ -87,8 +87,8 @@ jobs:
               -rw_timeout 15000000 \
               -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:2]scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:1.5:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
-              -map "[outv]" -map 0:3? \
+              -filter_complex "[0:2]scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:1.5:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=200:-1[logo]; [main][logo]overlay=W-w-25:25[outv]; [0:3]volume=15.0[outa]" \
+              -map "[outv]" -map "[outa]" \
               -c:v libx264 -preset superfast -profile:v high -level 4.2 \
               -b:v 9000k -maxrate 10000k -bufsize 15000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
