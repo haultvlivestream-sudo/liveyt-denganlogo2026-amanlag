@@ -27,7 +27,8 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          yt-dlp -U
+          # Mengabaikan error jika yt-dlp -U gagal kena rate limit GitHub
+          yt-dlp -U || echo "⚠️ Warning: Update yt-dlp dilewati karena Rate Limit, menggunakan versi terunduh."
 
       - name: 4. Cek dan Deteksi Secret FB_COOKIES
         run: |
