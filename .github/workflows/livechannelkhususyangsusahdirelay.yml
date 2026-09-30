@@ -57,7 +57,7 @@ jobs:
           FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
           while true; do
-            echo "--- [$(date)] Mengambil Stream via Client iOS (Khusus Channel Susah Relay) ---"
+            echo "--- [$(date)] Mengambil Stream via Client iOS ---"
             
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
@@ -65,7 +65,7 @@ jobs:
                                 --no-cache-dir \
                                 --user-agent "$FIXED_UA" \
                                 --extractor-args "youtube:player-client=ios,mweb" \
-                                -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+                                -f "b/best" \
                                 -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log)
 
             if [ -z "$VIDEO_URL" ]; then
@@ -73,34 +73,34 @@ jobs:
               VIDEO_URL=$(yt-dlp --force-ipv4 \
                                   --no-cache-dir \
                                   --extractor-args "youtube:player-client=tv_embedded" \
-                                  -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+                                  -f "b/best" \
                                   -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null)
             fi
 
             if [ -z "$VIDEO_URL" ]; then
-              echo "❌ GAGAL MENDAPATKAN URL VIDEO! Menunggu 5 detik sebelum coba lagi..."
+              echo "❌ GAGAL MENDAPATKAN URL VIDEO! Menunggu 5 detik..."
               cat yt_error.log 2>/dev/null
               sleep 5
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg (Fix 8 Menit, Anti-Lag & Clean Log)..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Absolute Scale & Anti-Stutter..."
 
             ffmpeg \
               -loglevel error \
               -http_persistent 0 \
-              -rw_timeout 5000000 \
-              -thread_queue_size 8192 -re -i "$VIDEO_URL" \
+              -rw_timeout 15000000 \
+              -thread_queue_size 10244 -i "$VIDEO_URL" \
               -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,format=yuv420p[mainv]; [1:v]format=yuva420p,colorkey=0x006900:0.1:0.1,scale=288:-1[logo]; [mainv][logo]overlay=W-w-38:38:shortest=1[outv]" \
+              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[mainv]; [1:v]colorkey=0x006900:0.1:0.1,scale=288:-1,setsar=1[logoresized]; color=c=black@0.0:s=1920x1080:r=60[canvas]; [canvas][logoresized]overlay=W-w-38:38[logocanvas]; [mainv][logocanvas]overlay=0:0:shortest=1[outv]" \
               -map "[outv]" -map 0:a? \
-              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
+              -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 9000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -b:a 128k -ar 44100 -ac 2 \
               -flvflags no_duration_filesize \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "🔴 [TERDETEKSI] Stream terputus/selesai! Mengulang otomatis dalam 2 detik..."
+            echo "🔴 [TERDETEKSI] Stream terputus/selesai! Mengulang dalam 2 detik..."
             sleep 2
           done
           
