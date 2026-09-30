@@ -34,7 +34,7 @@ jobs:
           if [ -n "${{ secrets.FB_COOKIES }}" ] && [ "${{ secrets.FB_COOKIES }}" != "KOSONG" ]; then
             echo "✅ Status: Secret FB_COOKIES TERDETEKSI dan akan digunakan."
           else
-            echo "⚠️️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
+            echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
           fi
 
       - name: 5. Jalankan Relay Streaming Real-Time (Full HD 1080p Mulus)
@@ -62,15 +62,16 @@ jobs:
             echo "--- [$(date)] Mengambil Stream HD Terbaik dari Facebook ---"
             echo "=========================================================="
             
-            # Ambil format tergabung (pre-merged / single stream containing audio + video)
-            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
-                                --force-ipv4 \
-                                --no-cache-dir \
-                                --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
-                                -f "b/best[ext=mp4]/best" \
-                                -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log | head -n 1)
+            # Ambil semua URL stream (Video & Audio jika terpisah)
+            URLS=$(yt-dlp $COOKIE_ARG \
+                          --force-ipv4 \
+                          --no-cache-dir \
+                          --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+                          -f "bestvideo+bestaudio/best" \
+                          -S "res:1080,res:720,fps" \
+                          -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log)
 
-            if [ -z "$VIDEO_URL" ]; then
+            if [ -z "$URLS" ]; then
               echo "❌ GAGAL MENDAPATKAN URL VIDEO FACEBOOK!"
               echo "=== DETAIL ERROR DARI YT-DLP ==="
               cat yt_error.log
@@ -80,20 +81,38 @@ jobs:
               continue
             fi
 
+            # Pisahkan URL Video dan URL Audio secara aman
+            VIDEO_URL=$(echo "$URLS" | sed -n '1p')
+            AUDIO_URL=$(echo "$URLS" | sed -n '2p')
+
             echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay Mulus..."
 
-            ffmpeg \
-              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
-              -rw_timeout 15000000 \
-              -i "$VIDEO_URL" \
-              -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
-              -map "[outv]" -map 0:a? \
-              -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
-              -b:v 5000k -maxrate 6000k -bufsize 10000k \
-              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-              -c:a aac -ar 44100 -b:a 128k \
-              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            if [ -n "$AUDIO_URL" ]; then
+              # Jika Facebook memberikan Stream Video & Audio Terpisah
+              ffmpeg \
+                -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
+                -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$AUDIO_URL" \
+                -stream_loop -1 -i "$LOGO_FILE" \
+                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
+                -map "[outv]" -map 1:a \
+                -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
+                -b:v 4500k -maxrate 5000k -bufsize 10000k \
+                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -ar 44100 -b:a 128k \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            else
+              # Jika Facebook memberikan Stream Tunggal (Video + Audio Gabung)
+              ffmpeg \
+                -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
+                -stream_loop -1 -i "$LOGO_FILE" \
+                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
+                -map "[outv]" -map 0:a? \
+                -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
+                -b:v 4500k -maxrate 5000k -bufsize 10000k \
+                -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+                -c:a aac -ar 44100 -b:a 128k \
+                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
+            fi
 
             echo "⚠️ Stream terputus atau selesai. Mengulang kembali dalam 10 detik..."
             sleep 10
