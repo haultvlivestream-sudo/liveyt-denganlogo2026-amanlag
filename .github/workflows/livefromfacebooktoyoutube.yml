@@ -86,31 +86,33 @@ jobs:
             echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Audio/Video Sync Lock)..."
 
             if [ -n "$AUDIO_URL" ]; then
-              # Untuk stream terpisah: Memaksa buffer & timestamp locking
+              # Jika Video & Audio Terpisah dari Facebook
               ffmpeg \
-                -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -thread_queue_size 2048 -i "$VIDEO_URL" \
-                -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -thread_queue_size 2048 -i "$AUDIO_URL" \
+                -use_wallclock_as_timestamps 1 \
+                -thread_queue_size 1024 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
+                -thread_queue_size 1024 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$AUDIO_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
-                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30,aresample=async=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
-                -map "[outv]" -map 1:a \
+                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]; [1:a]aresample=async=1000:min_hard_comp=0.100000:first_pts=0[outa]" \
+                -map "[outv]" -map "[outa]" \
                 -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
                 -b:v 4500k -maxrate 5000k -bufsize 10000k \
                 -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
-                -use_wallclock_as_timestamps 1 -async 1 -vsync 1 \
+                -fps_mode passthrough \
                 -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
             else
-              # Untuk stream tunggal
+              # Jika Video & Audio Gabung
               ffmpeg \
-                -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -thread_queue_size 2048 -i "$VIDEO_URL" \
+                -use_wallclock_as_timestamps 1 \
+                -thread_queue_size 1024 -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
                 -stream_loop -1 -i "$LOGO_FILE" \
-                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30,aresample=async=1[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
-                -map "[outv]" -map 0:a? \
+                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]; [0:a]aresample=async=1000:min_hard_comp=0.100000:first_pts=0[outa]" \
+                -map "[outv]" -map "[outa]" \
                 -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
                 -b:v 4500k -maxrate 5000k -bufsize 10000k \
                 -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
                 -c:a aac -ar 44100 -b:a 128k \
-                -use_wallclock_as_timestamps 1 -async 1 -vsync 1 \
+                -fps_mode passthrough \
                 -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
             fi
 
