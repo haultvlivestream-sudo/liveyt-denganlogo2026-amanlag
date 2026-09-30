@@ -59,7 +59,6 @@ jobs:
           while true; do
             echo "--- [$(date)] Mengambil Stream via Client iOS (Khusus Channel Susah Relay) ---"
             
-            # PAKSA FORMAT mp4/hls DENGAN BITRATE TERBAIK AGAR PROBING FFMPEG LEBIH CEPAT
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
@@ -85,16 +84,15 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Stabil (Fix 8 Menit & Fix Logo)..."
+            echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg (Fix 8 Menit, Anti-Lag & Clean Log)..."
 
-            # EKSEKUSI FFMPEG PERBAIKAN MAKSIMAL
             ffmpeg \
-              -loglevel warning \
+              -loglevel error \
               -http_persistent 0 \
               -rw_timeout 5000000 \
               -thread_queue_size 8192 -re -i "$VIDEO_URL" \
               -thread_queue_size 2048 -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2[mainv]; [1:v]colorkey=0x006900:0.1:0.1,scale=288:-1[logo]; [mainv][logo]overlay=W-w-38:38:shortest=1[outv]" \
+              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,format=yuv420p[mainv]; [1:v]format=yuva420p,colorkey=0x006900:0.1:0.1,scale=288:-1[logo]; [mainv][logo]overlay=W-w-38:38:shortest=1[outv]" \
               -map "[outv]" -map 0:a? \
               -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
