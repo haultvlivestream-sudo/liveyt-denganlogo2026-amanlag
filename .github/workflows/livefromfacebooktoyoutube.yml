@@ -80,16 +80,17 @@ jobs:
               continue
             fi
 
-            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Stream #0:2 1080p Real)..."
+            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (1080p Real)..."
 
             ffmpeg \
+              -threads 0 \
               -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
               -rw_timeout 15000000 \
               -i "$VIDEO_URL" \
               -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[0:2]scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:1.5:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
-              -map "[outv]" -map 0:3? \
-              -c:v libx264 -preset superfast -profile:v high -level 4.2 \
+              -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease:flags=bicubic,pad=1920:1080:(ow-iw)/2:(oh-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=170:-1[logo]; [main][logo]overlay=W-w-40:40[outv]" \
+              -map "[outv]" -map 0:a:0? \
+              -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
               -b:v 9000k -maxrate 10000k -bufsize 15000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
@@ -99,4 +100,3 @@ jobs:
             sleep 10
           done
           
-
