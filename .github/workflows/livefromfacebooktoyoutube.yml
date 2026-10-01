@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          yt-dlp -U || echo "⚠️ Warning: Update yt-dlp dilewati karena Rate Limit."
+          yt-dlp -U
 
       - name: 4. Cek dan Deteksi Secret FB_COOKIES
         run: |
@@ -37,7 +37,7 @@ jobs:
             echo "⚠️ Status: Secret FB_COOKIES KOSONG atau BELUM DISET!"
           fi
 
-      - name: 5. Jalankan Relay Streaming Real-Time (Full HD 1080p Normal Speed)
+      - name: 5. Jalankan Relay Streaming Real-Time (Full HD 1080p Max)
         env:
           FB_COOKIES: ${{ secrets.FB_COOKIES }}
         run: |
@@ -62,15 +62,15 @@ jobs:
             echo "--- [$(date)] Mengambil Stream HD Terbaik dari Facebook ---"
             echo "=========================================================="
             
-            URLS=$(yt-dlp $COOKIE_ARG \
-                          --force-ipv4 \
-                          --no-cache-dir \
-                          --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
-                          -f "bestvideo+bestaudio/best" \
-                          -S "res:1080,res:720,fps" \
-                          -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log)
+            VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                --force-ipv4 \
+                                --no-cache-dir \
+                                --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+                                -f "bestvideo+bestaudio/best" \
+                                -S "res:1080,res:720,fps,br" \
+                                -g "${{ github.event.inputs.link_facebook }}" 2>yt_error.log | head -n 1)
 
-            if [ -z "$URLS" ]; then
+            if [ -z "$VIDEO_URL" ]; then
               echo "❌ GAGAL MENDAPATKAN URL VIDEO FACEBOOK!"
               echo "=== DETAIL ERROR DARI YT-DLP ==="
               cat yt_error.log
@@ -80,39 +80,25 @@ jobs:
               continue
             fi
 
-            VIDEO_URL=$(echo "$URLS" | sed -n '1p')
-            AUDIO_URL=$(echo "$URLS" | sed -n '2p')
+            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay (Stream #0:2 1080p Real)..."
 
-            echo "🚀 SUMBER FACEBOOK DITEMUKAN! Memulai FFmpeg Relay Kecepatan Normal (1.0x)..."
-
-            if [ -n "$AUDIO_URL" ]; then
-              # Jika Video & Audio Terpisah
-              ffmpeg \
-                -re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
-                -re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$AUDIO_URL" \
-                -stream_loop -1 -i "$LOGO_FILE" \
-                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
-                -map "[outv]" -map 1:a \
-                -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
-                -b:v 4500k -maxrate 5000k -bufsize 10000k \
-                -pix_fmt yuv420p -r 30 -g 60 -keyint_min 60 -sc_threshold 0 \
-                -c:a aac -ar 44100 -b:a 128k \
-                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
-            else
-              # Jika Video & Audio Gabung
-              ffmpeg \
-                -re -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -rw_timeout 15000000 -i "$VIDEO_URL" \
-                -stream_loop -1 -i "$LOGO_FILE" \
-                -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
-                -map "[outv]" -map 0:a? \
-                -c:v libx264 -preset ultrafast -profile:v high -level 4.2 \
-                -b:v 4500k -maxrate 5000k -bufsize 10000k \
-                -pix_fmt yuv420p -r 30 -g 60 -keyint_min 60 -sc_threshold 0 \
-                -c:a aac -ar 44100 -b:a 128k \
-                -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
-            fi
+            ffmpeg \
+              -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 \
+              -rw_timeout 15000000 \
+              -i "$VIDEO_URL" \
+              -stream_loop -1 -i "$LOGO_FILE" \
+              -filter_complex "[0:2]scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:1.5:5:5:0.0[main]; [1:v]colorkey=0x006900:0.1:0.1,scale=140:-1[logo]; [main][logo]overlay=W-w-25:25[outv]" \
+              -map "[outv]" -map 0:3? \
+              -c:v libx264 -preset superfast -profile:v high -level 4.2 \
+              -b:v 9000k -maxrate 10000k -bufsize 15000k \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -ar 44100 -b:a 128k \
+              -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
             echo "⚠️ Stream terputus atau selesai. Mengulang kembali dalam 10 detik..."
             sleep 10
           done
           
+
+
+Ini udah good tapi apa bisa kalau audionya diperbesar 15x lipat terus logonya itu diperbesar sedikit
