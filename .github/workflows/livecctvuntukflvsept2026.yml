@@ -38,11 +38,12 @@ jobs:
         run: |
           set +e
 
+          # Menyiapkan argumen cookies dengan spasi yang aman
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
-            COOKIE_ARG="--cookies cookies.txt"
+            COOKIE_OPT="--cookies cookies.txt"
           else
-            COOKIE_ARG=""
+            COOKIE_OPT=""
           fi
           
           LOGO_FILE="logoihyajuni2026.mp4"
@@ -57,7 +58,8 @@ jobs:
           while true; do
             echo "--- [$(date)] Mencari Kualitas Audio YouTube via Sesi Android ---"
             
-            AUDIO_URL=$(yt-dlp$COOKIE_ARG \
+            # Perbaikan sintaks pemanggilan yt-dlp dengan evalkuasi variabel COOKIE_OPT
+            AUDIO_URL=$(yt-dlp $COOKIE_OPT \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
@@ -78,10 +80,6 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV FLV dan Audio..."
 
-            # PERBAIKAN VIDEO CCTVS MACET:
-            # 1. Menambahkan -rw_timeout 15000000 (15 detik timeout jika server CCTV tidak kirim data).
-            # 2. Menambahkan -shortest agar saat video CCTV mati/putus, FFmpeg langsung berhenti & masuk ke loop `while` untuk reconnect ulang secara bersih.
-            
             ffmpeg -headers "User-Agent: $FIXED_UA" \
               -rw_timeout 15000000 \
               -analyzeduration 2000000 \
