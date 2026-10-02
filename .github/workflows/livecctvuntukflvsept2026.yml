@@ -52,13 +52,12 @@ jobs:
             exit 1
           fi
 
-          # User-Agent Manusia untuk bypass blokir
           FIXED_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
           while true; do
             echo "--- [$(date)] Mencari Kualitas Audio YouTube via Sesi Android ---"
             
-            AUDIO_URL=$(yt-dlp $COOKIE_ARG \
+            AUDIO_URL=$(yt-dlp$COOKIE_ARG \
                                 --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
@@ -79,14 +78,19 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV FLV dan Audio..."
 
+            # PERBAIKAN VIDEO CCTVS MACET:
+            # 1. Menambahkan -rw_timeout 15000000 (15 detik timeout jika server CCTV tidak kirim data).
+            # 2. Menambahkan -shortest agar saat video CCTV mati/putus, FFmpeg langsung berhenti & masuk ke loop `while` untuk reconnect ulang secara bersih.
+            
             ffmpeg -headers "User-Agent: $FIXED_UA" \
+              -rw_timeout 15000000 \
               -analyzeduration 2000000 \
               -probesize 2000000 \
-              -thread_queue_size 1024 \
+              -thread_queue_size 2048 \
               -reconnect 1 \
               -reconnect_at_eof 1 \
               -reconnect_streamed 1 \
-              -reconnect_delay_max 30 \
+              -reconnect_delay_max 10 \
               -fflags +genpts+discardcorrupt \
               -i "${{ github.event.inputs.flv_url }}" \
               -thread_queue_size 1024 \
@@ -101,9 +105,10 @@ jobs:
               -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4000k -maxrate 5000k -bufsize 8000k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -ar 44100 -b:a 128k \
+              -shortest \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Koneksi terputus atau stream selesai. Mengulang dalam 10 detik..."
-            sleep 10
+            echo "⚠️ Stream CCTV terputus / mereset koneksi. Mengulang dalam 5 detik..."
+            sleep 5
           done
           
