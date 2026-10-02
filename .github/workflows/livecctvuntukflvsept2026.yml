@@ -97,7 +97,7 @@ jobs:
               -thread_queue_size 1024 \
               -stream_loop -1 \
               -i "$LOGO_FILE" \
-              -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.085:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
+              -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.115:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
               -map "[v_out]" \
               -map 1:a \
               -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4000k -maxrate 5000k -bufsize 8000k \
