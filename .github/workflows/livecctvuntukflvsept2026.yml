@@ -79,10 +79,6 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV FLV dan Audio..."
 
-            # KHUSUS FLV:
-            # 1. Menggunakan format input HTTP progressive FLV langsung dari CCTV Dishub.
-            # 2. Opsi -analyzeduration & -probesize agar FFmpeg mengenali header stream FLV dengan cepat tanpa jeda delay.
-            
             ffmpeg -headers "User-Agent: $FIXED_UA" \
               -analyzeduration 2000000 \
               -probesize 2000000 \
@@ -94,9 +90,11 @@ jobs:
               -fflags +genpts+discardcorrupt \
               -i "${{ github.event.inputs.flv_url }}" \
               -thread_queue_size 1024 \
+              -stream_loop -1 \
               -i "$AUDIO_URL" \
               -thread_queue_size 1024 \
-              -stream_loop -1 -i "$LOGO_FILE" \
+              -stream_loop -1 \
+              -i "$LOGO_FILE" \
               -filter_complex "[0:v]scale=1280:720,setsar=1[main]; [2:v]colorkey=0x006900:0.1:0.1,scale=1280*0.115:-1[logo]; [main][logo]overlay=W-w-(W*0.025):(W*0.025)[v_out]" \
               -map "[v_out]" \
               -map 1:a \
@@ -105,7 +103,7 @@ jobs:
               -c:a aac -ar 44100 -b:a 128k \
               -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-            echo "⚠️ Koneksi CCTV FLV terputus atau buffer habis. Mengulang dalam 10 detik..."
+            echo "⚠️ Koneksi terputus atau stream selesai. Mengulang dalam 10 detik..."
             sleep 10
           done
           
