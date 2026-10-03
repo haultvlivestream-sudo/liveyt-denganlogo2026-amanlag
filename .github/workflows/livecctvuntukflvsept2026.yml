@@ -38,7 +38,6 @@ jobs:
         run: |
           set +e
 
-          # Menyiapkan argumen cookies dengan spasi yang aman
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_OPT="--cookies cookies.txt"
@@ -79,8 +78,11 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Menghubungkan ke CCTV FLV dan Audio..."
 
-            # PERBAIKAN UKURAN LOGO: scale=1280*0.08:-1
+            # PENYESUAIAN KHUSUS HTTP FLV:
+            # -http_persistent 0 : Memaksa sesi HTTP baru tanpa memakai ulang socket lama yang sudah mati
+            
             ffmpeg -headers "User-Agent: $FIXED_UA" \
+              -http_persistent 0 \
               -rw_timeout 15000000 \
               -analyzeduration 2000000 \
               -probesize 2000000 \
