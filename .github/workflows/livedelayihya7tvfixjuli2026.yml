@@ -63,19 +63,19 @@ jobs:
             exit 1
           fi
 
-          # Ambil pilihan resolusi dari input GitHub Actions
           PILIHAN_RES="${{ github.event.inputs.resolusi }}"
           if [ "$PILIHAN_RES" = "best" ]; then
-            FORMAT_ARG="b/best"
+            FORMAT_ARG="bestvideo+bestaudio/best"
           else
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Mengambil Resolusi: $PILIHAN_RES via Client iOS ---"
+          echo "--- [$(date)] Mengambil & Menggabungkan Resolusi Max: $PILIHAN_RES ---"
 
           # User-Agent Safari iOS
           FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
           
+          # Menggunakan --get-url dengan format yang sudah digabung (mengatasi desinkronisasi audio/video)
           VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                               --js-runtime node \
                               --force-ipv4 \
@@ -83,7 +83,8 @@ jobs:
                               --user-agent "$FIXED_UA" \
                               --extractor-args "youtube:player-client=ios,mweb" \
                               -f "$FORMAT_ARG" \
-                              -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log) || true
+                              --get-url \
+                              "${{ github.event.inputs.link_youtube }}" 2>yt_error.log) || true
 
           if [ -z "$VIDEO_URL" ]; then
             echo "⚠️ Client iOS gagal, mencoba Fallback Client TV..."
@@ -91,7 +92,8 @@ jobs:
                                 --no-cache-dir \
                                 --extractor-args "youtube:player-client=tv_embedded" \
                                 -f "$FORMAT_ARG" \
-                                -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null) || true
+                                --get-url \
+                                "${{ github.event.inputs.link_youtube }}" 2>/dev/null) || true
           fi
 
           if [ -z "$VIDEO_URL" ]; then
@@ -104,7 +106,8 @@ jobs:
 
           # EKSEKUSI FFMPEG:
           # - Logo di pojok Kanan Atas: W-w-(W*0.02):H*0.02
-          # - Kecepatan 1x (Real-time)
+          # - Kecepatan 1x (Real-time normal, tanpa percepatan)
+          # - Stream putus jika sumber mati (tanpa auto-reconnect/loop yang memaksa nyambung)
           ffmpeg \
             -rw_timeout 5000000 \
             -thread_queue_size 4096 -i "$VIDEO_URL" \
