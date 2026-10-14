@@ -49,7 +49,6 @@ jobs:
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
           else
-            echo "⚠️ PERINGATAN: YouTube Cookies kosong! Resolusi 1080p mungkin dibatasi oleh YouTube."
             COOKIE_ARG=""
           fi
           
@@ -66,32 +65,31 @@ jobs:
 
           PILIHAN_RES="${{ github.event.inputs.resolusi }}"
           if [ "$PILIHAN_RES" = "best" ]; then
-            FORMAT_ARG="bestvideo+bestaudio/best"
+            FORMAT_ARG="b/best"
           else
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Mengambil Resolusi Max: $PILIHAN_RES via Android/TV Client ---"
+          echo "--- [$(date)] Mengambil Resolusi Max: $PILIHAN_RES (Anti-360p Bypass) ---"
 
-          # Menggunakan client ANDROID dan TV yang tidak membatasi resolusi 1080p pada video VOD
+          # Menggunakan kombinasi client android + web sesuai trik isu terbaru yt-dlp
           VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                               --js-runtime node \
                               --force-ipv4 \
                               --no-cache-dir \
-                              --extractor-args "youtube:player-client=android,tv" \
+                              --extractor-args "youtube:player-client=android,web" \
                               -f "$FORMAT_ARG" \
-                              --get-url \
-                              "${{ github.event.inputs.link_youtube }}" 2>yt_error.log) || true
+                              -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log) || true
 
           if [ -z "$VIDEO_URL" ]; then
-            echo "⚠️ Client Android/TV gagal, mencoba Fallback Client Web..."
+            echo "⚠️ Client Android/Web gagal, mencoba fallback mweb..."
             VIDEO_URL=$(yt-dlp $COOKIE_ARG \
+                                --js-runtime node \
                                 --force-ipv4 \
                                 --no-cache-dir \
-                                --extractor-args "youtube:player-client=web" \
+                                --extractor-args "youtube:player-client=mweb" \
                                 -f "$FORMAT_ARG" \
-                                --get-url \
-                                "${{ github.event.inputs.link_youtube }}" 2>/dev/null) || true
+                                -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null) || true
           fi
 
           if [ -z "$VIDEO_URL" ]; then
