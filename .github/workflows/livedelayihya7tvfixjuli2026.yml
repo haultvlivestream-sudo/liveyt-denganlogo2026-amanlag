@@ -1,4 +1,4 @@
-name: LIVE FIX DELAY AGUSTUS 2026 LOGO KIRI ATAS
+name: LIVE FIX DELAY AGUSTUS 2026 LOGO KANAN ATAS
 
 on:
   workflow_dispatch:
@@ -6,6 +6,16 @@ on:
       link_youtube:
         description: 'Link Video Sumber'
         required: true
+      resolusi:
+        description: 'Pilih Resolusi Maksimal'
+        required: true
+        default: '1080'
+        type: choice
+        options:
+          - '1080'
+          - '720'
+          - '480'
+          - 'best'
       kunci_rtmp:
         description: 'Stream Key YouTube'
         required: true
@@ -44,7 +54,6 @@ jobs:
           
           LOGO_FILE="logoihya7tvagustus2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
-            # Fallback jika nama file logo berbeda
             LOGO_FILE="logoihyajuni2026.mp4"
           fi
 
@@ -54,10 +63,18 @@ jobs:
             exit 1
           fi
 
-          # User-Agent Safari iOS (Bypass 429 & Ramah Cookies)
-          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
+          # Ambil pilihan resolusi dari input GitHub Actions
+          PILIHAN_RES="${{ github.event.inputs.resolusi }}"
+          if [ "$PILIHAN_RES" = "best" ]; then
+            FORMAT_ARG="b/best"
+          else
+            FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
+          fi
 
-          echo "--- [$(date)] Mengambil Stream via Client iOS ---"
+          echo "--- [$(date)] Mengambil Resolusi: $PILIHAN_RES via Client iOS ---"
+
+          # User-Agent Safari iOS
+          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
           
           VIDEO_URL=$(yt-dlp $COOKIE_ARG \
                               --js-runtime node \
@@ -65,7 +82,7 @@ jobs:
                               --no-cache-dir \
                               --user-agent "$FIXED_UA" \
                               --extractor-args "youtube:player-client=ios,mweb" \
-                              -f "b/best" \
+                              -f "$FORMAT_ARG" \
                               -g "${{ github.event.inputs.link_youtube }}" 2>yt_error.log) || true
 
           if [ -z "$VIDEO_URL" ]; then
@@ -73,7 +90,7 @@ jobs:
             VIDEO_URL=$(yt-dlp --force-ipv4 \
                                 --no-cache-dir \
                                 --extractor-args "youtube:player-client=tv_embedded" \
-                                -f "b/best" \
+                                -f "$FORMAT_ARG" \
                                 -g "${{ github.event.inputs.link_youtube }}" 2>/dev/null) || true
           fi
 
@@ -86,13 +103,13 @@ jobs:
           echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Streaming..."
 
           # EKSEKUSI FFMPEG:
-          # - Skala logo: 0.05 (5%)
-          # - Posisi: Pojok Kiri Atas dengan jarak 2% dari kiri dan atas (W*0.02 : H*0.02)
+          # - Logo di pojok Kanan Atas: W-w-(W*0.02):H*0.02
+          # - Kecepatan 1x (Real-time)
           ffmpeg \
             -rw_timeout 5000000 \
             -thread_queue_size 4096 -i "$VIDEO_URL" \
             -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.05:-1[logo]; [0:v][logo]overlay=W*0.02:H*0.02:shortest=1[outv]" \
+            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.05:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
             -map "[outv]" -map 0:a? \
             -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
