@@ -40,8 +40,18 @@ jobs:
           yt-dlp -U
 
       - name: 4. Jalankan Relay Streaming
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           set -e
+
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            echo "❌ ERROR: Secret YT_COOKIES wajib diisi!"
+            exit 1
+          fi
           
           LOGO_FILE="logoihya7tvagustus2026.mp4"
           if [ ! -f "$LOGO_FILE" ]; then
@@ -56,47 +66,23 @@ jobs:
 
           PILIHAN_RES="${{ github.event.inputs.resolusi }}"
           if [ "$PILIHAN_RES" = "best" ]; then
-            FORMAT_SORT="-S vcodec:h264,res,ext"
+            FORMAT_ARG="bestvideo+bestaudio/best"
           else
-            FORMAT_SORT="-S vcodec:h264,res:$PILIHAN_RES,ext"
+            FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Mengambil Resolusi Max: $PILIHAN_RES (Bypass SABR 360p) ---"
+          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES via Pipe yt-dlp + FFmpeg ---"
 
-          # CATATAN: Sengaja TANPA COOKIES agar terhindar dari pembatasan 360p server YouTube (SABR issue)
-          # Menggunakan player-client=default,tv_simply terbukti paling ampuh meloloskan 1080p di issue #13965
-          VIDEO_URL=$(yt-dlp --force-ipv4 \
-                              --no-cache-dir \
-                              --extractor-args "youtube:player-client=default,tv_simply" \
-                              $FORMAT_SORT \
-                              --get-url \
-                              "${{ github.event.inputs.link_youtube }}" 2>yt_error.log) || true
-
-          if [ -z "$VIDEO_URL" ]; then
-            echo "⚠️ TV Simply gagal, mencoba fallback client android..."
-            VIDEO_URL=$(yt-dlp --force-ipv4 \
-                                --no-cache-dir \
-                                --extractor-args "youtube:player-client=android" \
-                                $FORMAT_SORT \
-                                --get-url \
-                                "${{ github.event.inputs.link_youtube }}" 2>/dev/null) || true
-          fi
-
-          if [ -z "$VIDEO_URL" ]; then
-            echo "❌ GAGAL MENDAPATKAN URL VIDEO!"
-            cat yt_error.log 2>/dev/null
-            exit 1
-          fi
-
-          echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Streaming..."
-
-          # EKSEKUSI FFMPEG:
-          # - Logo di pojok Kanan Atas: W-w-(W*0.02):H*0.02
-          # - Kecepatan 1x (Real-time normal)
-          # - Stream putus otomatis jika sumber mati
+          # Menggunakan yt-dlp untuk mengalirkan stream langsung (pipe) ke ffmpeg agar resolusi 1080p (separated streams) dapat digabung sempurna tanpa nyangkut di 360p
+          yt-dlp $COOKIE_ARG \
+                  --force-ipv4 \
+                  --no-cache-dir \
+                  --js-runtime node \
+                  -f "$FORMAT_ARG" \
+                  -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
             -rw_timeout 5000000 \
-            -thread_queue_size 4096 -i "$VIDEO_URL" \
+            -thread_queue_size 4096 -i - \
             -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
             -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.05:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
             -map "[outv]" -map 0:a? \
