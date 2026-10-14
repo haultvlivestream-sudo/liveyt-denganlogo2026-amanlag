@@ -71,9 +71,9 @@ jobs:
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Logo 15%) ---"
+          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Kecepatan Normal 1x Real-Time) ---"
 
-          # Mengalirkan stream langsung via pipe agar resolusi tinggi stabil
+          # Mengalirkan stream via pipe dengan pengatur kecepatan -re agar pas 1x normal
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
@@ -82,6 +82,7 @@ jobs:
                   -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
             -rw_timeout 5000000 \
+            -re \
             -thread_queue_size 4096 -i - \
             -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
             -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
