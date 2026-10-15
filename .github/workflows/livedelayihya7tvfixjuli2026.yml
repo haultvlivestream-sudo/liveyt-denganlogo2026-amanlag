@@ -71,19 +71,26 @@ jobs:
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Kecepatan Normal 1x Real-Time) ---"
+          echo "--- [$(date)] Mendownload Video Sumber (Durasi Panjang Aman) ---"
 
-          # Mengalirkan stream via pipe dengan pengatur kecepatan -re agar pas 1x normal
+          # Download video secara utuh terlebih dahulu ke runner untuk menghindari Broken Pipe / Link Expired
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
                   --js-runtime node \
                   -f "$FORMAT_ARG" \
-                  -o - "${{ github.event.inputs.link_youtube }}" | \
+                  -o "source_video.mp4" \
+                  "${{ github.event.inputs.link_youtube }}"
+
+          echo "🚀 DOWNLOAD SELESAI! Memulai FFmpeg Streaming (Kecepatan 1x Stabil)..."
+
+          # EKSEKUSI FFMPEG MENGGUNAKAN FILE LOKAL:
+          # - Menggunakan -re agar kecepatan pas 1x normal (tidak ngebut, tidak lambat)
+          # - Aman untuk video durasi berjam-jam tanpa takut putus di tengah jalan
           ffmpeg \
             -rw_timeout 5000000 \
             -re \
-            -thread_queue_size 4096 -i - \
+            -thread_queue_size 4096 -i "source_video.mp4" \
             -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
             -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
             -map "[outv]" -map 0:a? \
