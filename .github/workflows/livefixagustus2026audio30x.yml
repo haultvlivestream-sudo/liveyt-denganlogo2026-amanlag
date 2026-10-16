@@ -1,4 +1,4 @@
-name: LIVE FIX AGUSTUS 2026 AUDIO 30X
+name: LIVE FIX OKT 2026 AUDIO 15X LIPAT 
 
 on:
   workflow_dispatch:
@@ -87,16 +87,12 @@ jobs:
 
             echo "🚀 SUMBER DITEMUKAN! Memulai FFmpeg Auto-Kill & Anti-Nyandet..."
 
-            # EKSEKUSI FFMPEG KUNCI LAMA + LOKAL FIX + AUDIO BOOST 30X:
-            # - Tanpa "-re" pada input video agar tidak underbuffer
-            # - "-rw_timeout 5000000" (5s) jika internet lag/stuck, FFmpeg langsung EXIT
-            # - "shortest=1" dari Script 1: jika video sumber habis/putus, FFmpeg langsung EXIT!
-            # - Filter "volume=30,alimiter=..." memperbesar audio 30x lipat tanpa clipping/distorsi
+            # EKSEKUSI FFMPEG (Dengan penambahan booster audio 15x & pencegah distorsi):
             ffmpeg \
               -rw_timeout 5000000 \
               -thread_queue_size 4096 -i "$VIDEO_URL" \
               -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]; [0:a]volume=30,alimiter=level_in=1:level_out=0.95:limit=0.99[outa]" \
+              -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.13:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):(W*0.02):shortest=1[outv]; [0:a]volume=15.0,dynaudnorm=f=150:g=15[outa]" \
               -map "[outv]" -map "[outa]" \
               -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
