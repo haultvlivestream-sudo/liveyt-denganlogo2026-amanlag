@@ -8,10 +8,7 @@ on:
         required: true
       resolusi:
         description: 'Pilih Resolusi Maksimal'
-        required: true
-        default: '1080'
-        type: choice
-        options:
+        required:
           - '1080'
           - '720'
           - '480'
@@ -59,25 +56,26 @@ jobs:
           fi
 
           if [ ! -f "$LOGO_FILE" ]; then
-            echo "ERROR: File logo tidak ditemukan!"
+            ERROR: File logo tidak ditemukan!
             ls
             exit 1
           fi
 
           PILIHAN_RES="${{ github.event.inputs.resolusi }}"
           if [ "$PILIHAN_RES" = "best" ]; then
-            FORMAT_ARG="bestvideo+bestaudio/best"
+            FORMAT_ARG="best/bestvideo+bestaudio"
           else
-            FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
+            FORMAT_ARG="bv*[height<=$PILIHAN_RES]+ba/b[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Target Speed 1.2x - 1.3x & Stabil RTMP) ---"
+          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Target Speed 1.2x - 1.3x & Fixed Pipe RTMP) ---"
 
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
                   --js-runtime node \
                   -f "$FORMAT_ARG" \
+                  --merge-output-format mkv \
                   --buffer-size 32k \
                   -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
