@@ -71,28 +71,25 @@ jobs:
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Strict Real-Time 1x) ---"
+          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Target Speed 1.8x - 2x) ---"
 
-          # Mengalirkan stream dengan pembatas buffer rate agar yt-dlp tidak ngebut berlebihan di awal
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
                   --js-runtime node \
                   -f "$FORMAT_ARG" \
-                  --buffer-size 16k \
+                  --buffer-size 64k \
                   -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
             -hide_banner \
-            -rw_timeout 10000000 \
-            -re \
-            -fflags +nobuffer+genpts \
-            -thread_queue_size 16384 -i - \
+            -fflags +nobuffer+fastseek \
+            -thread_queue_size 65536 -i - \
             -thread_queue_size 4096 -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1,fps=30[outv]" \
+            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
             -map "[outv]" -map 0:a? \
-            -c:v libx264 -preset veryfast -b:v 3500k -maxrate 4500k -bufsize 7000k \
+            -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3000k -maxrate 4000k -bufsize 6000k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
-            -fps_mode cfr \
+            -fps_mode passthrough \
             -c:a aac -b:a 128k -ar 44100 -ac 2 \
             -flvflags no_duration_filesize \
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
