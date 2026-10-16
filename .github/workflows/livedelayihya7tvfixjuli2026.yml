@@ -71,31 +71,28 @@ jobs:
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Mendownload Video Sumber (Durasi Panjang Aman) ---"
+          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Strict Real-Time 1x) ---"
 
-          # Download video secara utuh terlebih dahulu ke runner untuk menghindari Broken Pipe / Link Expired
+          # Mengalirkan stream dengan pembatas buffer rate agar yt-dlp tidak ngebut berlebihan di awal
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
                   --js-runtime node \
                   -f "$FORMAT_ARG" \
-                  -o "source_video.mp4" \
-                  "${{ github.event.inputs.link_youtube }}"
-
-          echo "🚀 DOWNLOAD SELESAI! Memulai FFmpeg Streaming (Kecepatan 1x Stabil)..."
-
-          # EKSEKUSI FFMPEG MENGGUNAKAN FILE LOKAL:
-          # - Menggunakan -re agar kecepatan pas 1x normal (tidak ngebut, tidak lambat)
-          # - Aman untuk video durasi berjam-jam tanpa takut putus di tengah jalan
+                  --buffer-size 16k \
+                  -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
-            -rw_timeout 5000000 \
+            -hide_banner \
+            -rw_timeout 10000000 \
             -re \
-            -thread_queue_size 4096 -i "source_video.mp4" \
-            -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
+            -fflags +nobuffer+genpts \
+            -thread_queue_size 16384 -i - \
+            -thread_queue_size 4096 -stream_loop -1 -i "$LOGO_FILE" \
+            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1,fps=30[outv]" \
             -map "[outv]" -map 0:a? \
-            -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
+            -c:v libx264 -preset veryfast -b:v 3500k -maxrate 4500k -bufsize 7000k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+            -fps_mode cfr \
             -c:a aac -b:a 128k -ar 44100 -ac 2 \
             -flvflags no_duration_filesize \
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
