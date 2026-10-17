@@ -36,14 +36,14 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
           
-          # Menggunakan fallback curl agar tidak error 403 rate limit
+          # Menggunakan fallback curl agar aman dari rate limit 403 GitHub API
           sudo curl -L --fail https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp || \
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp --version
 
-      - name: 4. Jalankan Relay Streaming (Speed 1.3x - 1.5x)
+      - name: 4. Jalankan Relay Streaming (Speed ~1.4x)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -77,7 +77,6 @@ jobs:
 
           echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Kecepatan Diatur ke ~1.4x) ---"
 
-          # Mengalirkan stream dengan filter percepat video (setpts=1/1.4*PTS) dan audio (atempo=1.4)
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
@@ -85,7 +84,8 @@ jobs:
                   -f "$FORMAT_ARG" \
                   -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
-            -rw_timeout 5000000 \
+            -hide_banner \
+            -rw_timeout 10000000 \
             -thread_queue_size 4096 -i - \
             -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
             -filter_complex "[0:v]setpts=1/1.4*PTS[v1]; \
@@ -96,7 +96,6 @@ jobs:
             -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -b:a 128k -ar 44100 -ac 2 \
-            -flvflags no_duration_filesize \
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
           echo "🔴 Stream selesai atau terputus. Proses dihentikan."
