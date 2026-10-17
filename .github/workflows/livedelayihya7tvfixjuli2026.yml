@@ -32,18 +32,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 3. Install Tools (Fix Rate Limit 403)
+      - name: 3. Install Tools (Bebas Rate Limit 403)
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
-          
-          # Fallback curl untuk menghindari rate limit 403 dari GitHub API
-          sudo curl -L --fail https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp || \
-          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-          
-          sudo chmod a+rx /usr/local/bin/yt-dlp
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl python3-pip
+          sudo pip3 install --upgrade yt-dlp
           yt-dlp --version
 
-      - name: 4. Jalankan Relay Streaming (Pacing Stabil ~1.4x)
+      - name: 4. Jalankan Relay Streaming (Delay Murni 1x Real-Time)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -75,28 +70,31 @@ jobs:
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Kecepatan Diatur Stabil ~1.4x) ---"
+          # User-Agent Safari iOS (Bypass 429 & Ramah Cookies agar tembus 1080p)
+          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
+          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Live Delay Normal 1x Real-Time) ---"
+
+          # Mengalirkan stream via pipe dengan pengatur kecepatan -re (tanpa looping agar murni live delay)
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
                   --js-runtime node \
+                  --user-agent "$FIXED_UA" \
+                  --extractor-args "youtube:player-client=ios,mweb" \
                   -f "$FORMAT_ARG" \
                   -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
-            -hide_banner \
-            -rw_timeout 15000000 \
+            -rw_timeout 5000000 \
             -re \
-            -thread_queue_size 8192 -i - \
+            -thread_queue_size 4096 -i - \
             -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex "[0:v:0]setpts=1/1.4*PTS[v1]; \
-                             [v1][1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; \
-                             [v1][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]; \
-                             [0:a:0]atempo=1.4[outa]" \
-            -map "[outv]" -map "[outa]" \
+            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
+            -map "[outv]" -map 0:a? \
             -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -b:a 128k -ar 44100 -ac 2 \
+            -flvflags no_duration_filesize \
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
           echo "🔴 Stream selesai atau terputus. Proses dihentikan."
