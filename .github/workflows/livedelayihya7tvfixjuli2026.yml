@@ -38,7 +38,7 @@ jobs:
           sudo pip3 install --upgrade yt-dlp
           yt-dlp --version
 
-      - name: 4. Jalankan Relay Streaming (Delay Murni 1x Real-Time)
+      - name: 4. Jalankan Relay Streaming (Delay Normal 1x Real-Time)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
@@ -70,18 +70,15 @@ jobs:
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          # User-Agent Safari iOS (Bypass 429 & Ramah Cookies agar tembus 1080p)
-          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
-
           echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Live Delay Normal 1x Real-Time) ---"
 
-          # Mengalirkan stream via pipe dengan pengatur kecepatan -re (tanpa looping agar murni live delay)
+          # Mengalirkan stream via pipe dengan tambahan --remote-components ejs:github untuk mengatasi JavaScript challenge & token pemutar YouTube terbaru
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
                   --js-runtime node \
-                  --user-agent "$FIXED_UA" \
-                  --extractor-args "youtube:player-client=ios,mweb" \
+                  --remote-components ejs:github \
+                  --extractor-args "youtube:player-client=web,tv_embedded" \
                   -f "$FORMAT_ARG" \
                   -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
