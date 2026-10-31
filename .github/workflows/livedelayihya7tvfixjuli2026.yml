@@ -1,4 +1,4 @@
-name: LIVE DELAY AGUSTUS 2026
+name: live delay agustus 2026
 
 on:
   workflow_dispatch:
@@ -63,23 +63,25 @@ jobs:
             exit 1
           fi
 
-          # Tentukan Format Berdasarkan Input Resolusi
+          # Mengambil pilihan resolusi dari input workflow
           RES="${{ github.event.inputs.pilihan_resolusi }}"
+          
+          # FORMAT TUNGGAL AGAR PIPING SUKSES TEMBUS 1080p/720p TANPA GAGAL MUXING
           if [ "$RES" = "1080" ]; then
-            FORMAT_STR="bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+            FORMAT_STR="best[height<=1080]"
           elif [ "$RES" = "720" ]; then
-            FORMAT_STR="bestvideo[height<=720]+bestaudio/best[height<=720]"
+            FORMAT_STR="best[height<=720]"
           elif [ "$RES" = "480" ]; then
-            FORMAT_STR="bestvideo[height<=480]+bestaudio/best[height<=480]"
+            FORMAT_STR="best[height<=480]"
           else
             FORMAT_STR="b/best"
           fi
 
           FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
-          echo "--- [$(date)] Memulai Ekstraksi Video Live Delay (Target: ${RES}p) ---"
+          echo "--- [$(date)] Memulai Live Delay (Target Resolusi: ${RES}p) ---"
 
-          # Menggunakan Piping (-o -) agar yt-dlp mengalirkan data langsung ke FFmpeg tanpa limit 360p
+          # Piping (-o -) dengan yt-dlp mengalirkan data langsung ke FFmpeg
           yt-dlp $COOKIE_ARG \
                 --js-runtime node \
                 --force-ipv4 \
@@ -101,6 +103,6 @@ jobs:
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
           EXIT_CODE=$?
-          echo "🔴 [SELESAI] Proses streaming live delay telah berakhir dengan kode: $EXIT_CODE"
+          echo "🔴 [SELESAI] Proses streaming live delay berakhir dengan kode: $EXIT_CODE"
           exit 0
           
