@@ -1,4 +1,4 @@
-name: LIVE FIX DELAY AGUSTUS 2026 LOGO KANAN ATAS
+name: LIVE DELAY AGUSTUS 2026
 
 on:
   workflow_dispatch:
@@ -6,7 +6,10 @@ on:
       link_youtube:
         description: 'Link Video Sumber'
         required: true
-      resolusi:
+      kunci_rtmp:
+        description: 'Stream Key YouTube'
+        required: true
+      pilihan_resolusi:
         description: 'Pilih Resolusi Maksimal'
         required: true
         default: '1080'
@@ -16,9 +19,6 @@ on:
           - '720'
           - '480'
           - 'best'
-      kunci_rtmp:
-        description: 'Stream Key YouTube'
-        required: true
 
 jobs:
   streaming:
@@ -32,24 +32,24 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 3. Install Tools (Bebas Rate Limit 403)
+      - name: 3. Install Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl python3-pip
-          sudo pip3 install --upgrade yt-dlp
-          yt-dlp --version
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
 
-      - name: 4. Jalankan Relay Streaming (Delay Normal 1x Real-Time)
+      - name: 4. Jalankan Live Delay Streaming
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          set -e
+          set +e
 
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
           else
-            echo "❌ ERROR: Secret YT_COOKIES wajib diisi!"
-            exit 1
+            COOKIE_ARG=""
           fi
           
           LOGO_FILE="logoihya7tvagustus2026.mp4"
@@ -63,36 +63,44 @@ jobs:
             exit 1
           fi
 
-          PILIHAN_RES="${{ github.event.inputs.resolusi }}"
-          if [ "$PILIHAN_RES" = "best" ]; then
-            FORMAT_ARG="bestvideo+bestaudio/best"
+          # Tentukan Format Berdasarkan Input Resolusi
+          RES="${{ github.event.inputs.pilihan_resolusi }}"
+          if [ "$RES" = "1080" ]; then
+            FORMAT_STR="bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+          elif [ "$RES" = "720" ]; then
+            FORMAT_STR="bestvideo[height<=720]+bestaudio/best[height<=720]"
+          elif [ "$RES" = "480" ]; then
+            FORMAT_STR="bestvideo[height<=480]+bestaudio/best[height<=480]"
           else
-            FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
+            FORMAT_STR="b/best"
           fi
 
-          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Live Delay Normal 1x Real-Time) ---"
+          FIXED_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 
-          # Mengalirkan stream via pipe dengan tambahan --remote-components ejs:github untuk mengatasi JavaScript challenge & token pemutar YouTube terbaru
+          echo "--- [$(date)] Memulai Ekstraksi Video Live Delay (Target: ${RES}p) ---"
+
+          # Menggunakan Piping (-o -) agar yt-dlp mengalirkan data langsung ke FFmpeg tanpa limit 360p
           yt-dlp $COOKIE_ARG \
-                  --force-ipv4 \
-                  --no-cache-dir \
-                  --js-runtime node \
-                  --remote-components ejs:github \
-                  --extractor-args "youtube:player-client=web,tv_embedded" \
-                  -f "$FORMAT_ARG" \
-                  -o - "${{ github.event.inputs.link_youtube }}" | \
+                --js-runtime node \
+                --force-ipv4 \
+                --no-cache-dir \
+                --user-agent "$FIXED_UA" \
+                --extractor-args "youtube:player-client=ios,mweb" \
+                -f "$FORMAT_STR" \
+                -o - "${{ github.event.inputs.link_youtube }}" | \
           ffmpeg \
-            -rw_timeout 5000000 \
             -re \
-            -thread_queue_size 4096 -i - \
+            -thread_queue_size 4096 -i pipe:0 \
             -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
-            -map "[outv]" -map 0:a? \
+            -filter_complex "[0:v]setpts=PTS/1.2[v_speed]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [v_speed][logo]overlay=W-w-(W*0.02):(H*0.02):shortest=1[outv]; [0:a]atempo=1.2[outa]" \
+            -map "[outv]" -map "[outa]" \
             -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -b:a 128k -ar 44100 -ac 2 \
             -flvflags no_duration_filesize \
             -f flv "rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.kunci_rtmp }}"
 
-          echo "🔴 Stream selesai atau terputus. Proses dihentikan."
+          EXIT_CODE=$?
+          echo "🔴 [SELESAI] Proses streaming live delay telah berakhir dengan kode: $EXIT_CODE"
+          exit 0
           
