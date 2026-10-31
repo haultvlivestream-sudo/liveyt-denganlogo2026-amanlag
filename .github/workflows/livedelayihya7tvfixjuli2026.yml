@@ -1,4 +1,4 @@
-name: LIVE FIX DELAY AGUSTUS 2026 LOGO KANAN ATAS
+name: live fix delay agustus 2026 logo kanan atas
 
 on:
   workflow_dispatch:
@@ -71,9 +71,9 @@ jobs:
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
-          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Logo 15%) ---"
+          echo "--- [$(date)] Menjalankan Stream Resolusi Max: $PILIHAN_RES (Kecepatan Dikunci di 1.2x) ---"
 
-          # Mengalirkan stream langsung via pipe agar resolusi tinggi stabil
+          # Mengalirkan stream langsung via pipe dengan pembatas kecepatan 1.2x (setpts & atempo)
           yt-dlp $COOKIE_ARG \
                   --force-ipv4 \
                   --no-cache-dir \
@@ -84,8 +84,8 @@ jobs:
             -rw_timeout 5000000 \
             -thread_queue_size 4096 -i - \
             -thread_queue_size 1024 -stream_loop -1 -i "$LOGO_FILE" \
-            -filter_complex "[1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [0:v][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]" \
-            -map "[outv]" -map 0:a? \
+            -filter_complex "[0:v]setpts=PTS/1.2[v_speed]; [1:v]colorkey=0x006900:0.1:0.1,scale=iw*0.15:-1[logo]; [v_speed][logo]overlay=W-w-(W*0.02):H*0.02:shortest=1[outv]; [0:a]atempo=1.2[outa]" \
+            -map "[outv]" -map "[outa]" \
             -c:v libx264 -preset ultrafast -tune zerolatency -b:v 3500k -maxrate 4500k -bufsize 4500k \
             -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
             -c:a aac -b:a 128k -ar 44100 -ac 2 \
