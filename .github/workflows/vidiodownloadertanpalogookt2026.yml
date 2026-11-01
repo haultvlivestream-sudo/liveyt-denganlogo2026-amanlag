@@ -44,7 +44,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Proses Download Cepat & Kirim ke Telegram
+      - name: 4. Download, Enkode Mulus, & Kirim ke Telegram
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -73,38 +73,56 @@ jobs:
 
           START_TIME="${{ github.event.inputs.waktu_mulai }}"
           END_TIME="${{ github.event.inputs.waktu_selesai }}"
+          RAW_FILE="raw_source.mp4"
           OUTPUT_FILE="hasil_video.mp4"
 
-          echo "--- [$(date)] Memulai Download Super Cepat (10x) Tanpa Ngelag ---"
+          echo "--- [$(date)] Memulai Download Utuh Super Cepat ---"
 
-          if [ "$START_TIME" = "00:00:00" ] && [ "$END_TIME" = "00:00:00" ]; then
-            SECTION_ARG=""
-          else
-            SECTION_ARG="--download-sections *${START_TIME}-${END_TIME}"
-          fi
-
+          # 1. Download utuh dengan kecepatan tinggi tanpa jeda/patah
           yt-dlp $COOKIE_ARG \
             --force-ipv4 \
             --no-cache-dir \
             --js-runtime node \
             --concurrent-fragments 10 \
-            --downloader ffmpeg \
-            $SECTION_ARG \
-            -f "$FORMAT_ARG" \
             --merge-output-format mp4 \
-            -o "$OUTPUT_FILE" \
+            -f "$FORMAT_ARG" \
+            -o "$RAW_FILE" \
             "${{ github.event.inputs.link_youtube }}"
 
-          if [ ! -f "$OUTPUT_FILE" ]; then
-            echo "❌ ERROR: Gagal mendownload video!"
+          if [ ! -f "$RAW_FILE" ]; then
+            echo "❌ ERROR: File gagal didownload!"
             exit 1
           fi
 
-          echo "✅ Download Selesai Cepat! Mengirim ke Telegram..."
+          echo "✅ Download selesai. Memotong dan merapikan frame dengan FFmpeg (Anti Patah-Patah)..."
+
+          # 2. Potong dan enkode ulang menggunakan setelan libx264 ultrafast agar gambar dan audio super mulus normal
+          if [ "$START_TIME" = "00:00:00" ] && [ "$END_TIME" = "00:00:00" ]; then
+            cp "$RAW_FILE" "$OUTPUT_FILE"
+          else
+            ffmpeg -y \
+              -ss "$START_TIME" \
+              $( [ "$END_TIME" != "00:00:00" ] && echo "-to $END_TIME" ) \
+              -i "$RAW_FILE" \
+              -c:v libx264 -preset ultrafast -crf 23 \
+              -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+              -c:a aac -b:a 128k -ar 44100 -ac 2 \
+              "$OUTPUT_FILE"
+          fi
+
+          if [ ! -f "$OUTPUT_FILE" ]; then
+            echo "❌ ERROR: Gagal memproses pemotongan video!"
+            exit 1
+          fi
+
+          echo "✅ Video Berhasil Dirapikan! Ukuran file:"
+          ls -lh "$OUTPUT_FILE"
+
+          echo "--- [$(date)] Mengirim video mulus ke Telegram... ---"
           
           RESPONSE=$(curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
                           -F video=@"$OUTPUT_FILE" \
-                          -F caption="✅ Video berhasil didownload super cepat! Resolusi: ${PILIHAN_RES}p (${START_TIME} - ${END_TIME})" \
+                          -F caption="✅ Video berhasil dipotong mulus tanpa patah-patah! Resolusi: ${PILIHAN_RES}p (${START_TIME} - ${END_TIME})" \
                           https://api.telegram.org/bot"$TELEGRAM_BOT_TOKEN"/sendVideo)
 
           echo "Respon Telegram: $RESPONSE"
