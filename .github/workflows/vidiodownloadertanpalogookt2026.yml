@@ -44,7 +44,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Download Instan 10x & Kirim ke Telegram
+      - name: 4. Download Super Cepat & Potong Presisi
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -76,29 +76,34 @@ jobs:
           RAW_FILE="raw_source.mp4"
           OUTPUT_FILE="hasil_video.mp4"
 
-          echo "--- [$(date)] Memulai Download Target Presisi (Kecepatan 10x Max) ---"
+          echo "--- [$(date)] Memulai Download Utuh Berkecepatan Tinggi (10x) ---"
 
-          # Menggunakan --download-sections agar yt-dlp HANYA mendownload potongan detik yang diminta saja (tidak download full video)
+          # Download video secara utuh dan super cepat tanpa kendala live stream error
+          yt-dlp $COOKIE_ARG \
+            --force-ipv4 \
+            --no-cache-dir \
+            --js-runtime node \
+            --concurrent-fragments 10 \
+            --merge-output-format mp4 \
+            -f "$FORMAT_ARG" \
+            -o "$RAW_FILE" \
+            "${{ github.event.inputs.link_youtube }}"
+
+          if [ ! -f "$RAW_FILE" ]; then
+            echo "❌ ERROR: File gagal didownload!"
+            exit 1
+          fi
+
+          echo "⚡ Memotong dan merapikan video dari $START_TIME sampai $END_TIME..."
+
+          # Pemotongan presisi tinggi menggunakan FFmpeg (anti patah-patah dan dijamin normal)
           if [ "$START_TIME" = "00:00:00" ] && [ "$END_TIME" = "00:00:00" ]; then
-            yt-dlp $COOKIE_ARG \
-              --force-ipv4 --no-cache-dir --js-runtime node --concurrent-fragments 10 \
-              -f "$FORMAT_ARG" -o "$OUTPUT_FILE" "${{ github.event.inputs.link_youtube }}"
+            cp "$RAW_FILE" "$OUTPUT_FILE"
           else
-            # Download instan khusus rentang waktu yang dipilih
-            yt-dlp $COOKIE_ARG \
-              --force-ipv4 --no-cache-dir --js-runtime node --concurrent-fragments 10 \
-              --download-sections "*${START_TIME}-${END_TIME}" \
-              -f "$FORMAT_ARG" -o "$RAW_FILE" "${{ github.event.inputs.link_youtube }}"
-
-            if [ ! -f "$RAW_FILE" ]; then
-              echo "❌ ERROR: Gagal mendownload bagian video!"
-              exit 1
-            fi
-
-            echo "⚡ Merapikan frame kilat dengan FFmpeg agar mulus (Tanpa Re-encode Berat)..."
-            
-            # Fast seeking (-ss sebelum -i) + copy stream atau re-encode kilat super cepat
-            ffmpeg -y -i "$RAW_FILE" \
+            ffmpeg -y \
+              -ss "$START_TIME" \
+              $( [ "$END_TIME" != "00:00:00" ] && echo "-to $END_TIME" ) \
+              -i "$RAW_FILE" \
               -c:v libx264 -preset ultrafast -crf 23 \
               -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
               -c:a aac -b:a 128k -ar 44100 -ac 2 \
@@ -106,18 +111,18 @@ jobs:
           fi
 
           if [ ! -f "$OUTPUT_FILE" ]; then
-            echo "❌ ERROR: Gagal memproses video!"
+            echo "❌ ERROR: Gagal memproses pemotongan video!"
             exit 1
           fi
 
-          echo "✅ Selesai! Ukuran file 30 detik:"
+          echo "✅ Selesai! Ukuran file hasil potong:"
           ls -lh "$OUTPUT_FILE"
 
           echo "--- [$(date)] Mengirim video ke Telegram... ---"
           
           RESPONSE=$(curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
                           -F video=@"$OUTPUT_FILE" \
-                          -F caption="✅ Video 30 detik berhasil di-download super cepat! Resolusi: ${PILIHAN_RES}p (${START_TIME} - ${END_TIME})" \
+                          -F caption="✅ Video berhasil didownload & dipotong mulus! Resolusi: ${PILIHAN_RES}p (${START_TIME} - ${END_TIME})" \
                           https://api.telegram.org/bot"$TELEGRAM_BOT_TOKEN"/sendVideo)
 
           echo "Respon Telegram: $RESPONSE"
