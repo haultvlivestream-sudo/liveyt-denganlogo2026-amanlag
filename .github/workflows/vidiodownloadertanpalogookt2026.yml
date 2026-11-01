@@ -1,0 +1,133 @@
+name: Vidio From YouTube Downloader To Telegram Okt 2026
+
+on:
+  workflow_dispatch:
+    inputs:
+      link_youtube:
+        description: 'Link Video YouTube Sumber'
+        required: true
+      resolusi:
+        description: 'Pilih Resolusi Maksimal'
+        required: true
+        default: '1080'
+        type: choice
+        options:
+          - '1080'
+          - '720'
+          - '480'
+          - 'best'
+      waktu_mulai:
+        description: 'Mulai Potong (Format: HH:MM:SS atau Detik, cth: 00:05:00)'
+        required: true
+        default: '00:00:00'
+      waktu_selesai:
+        description: 'Selesai Potong (Format: HH:MM:SS atau Kosongkan jika sampai habis)'
+        required: false
+        default: ''
+
+jobs:
+  download-dan-kirim:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Install Tools (FFmpeg & yt-dlp)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg jq curl
+          sudo curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp -U
+
+      - name: 4. Proses Download, Potong, & Kirim ke Telegram
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -e
+
+          # Validasi Telegram Secrets
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "❌ ERROR: TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID wajib diisi di GitHub Secrets!"
+            exit 1
+          fi
+
+          # Setup Cookies YouTube jika ada
+          if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
+          else
+            COOKIE_ARG=""
+          fi
+
+          # Ambil Input Resolusi & Waktu
+          PILIHAN_RES="${{ github.event.inputs.resolusi }}"
+          if [ "$PILIHAN_RES" = "best" ]; then
+            FORMAT_ARG="bestvideo+bestaudio/best"
+          else
+            FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
+          fi
+
+          START_TIME="${{ github.event.inputs.waktu_mulai }}"
+          END_TIME="${{ github.event.inputs.waktu_selesai }}"
+
+          DOWNLOAD_ARGS=()
+          if [ -n "$START_TIME" ] && [ "$START_TIME" != "00:00:00" ]; then
+            DOWNLOAD_ARGS+=("--download-sections *${START_TIME}-${END_TIME}")
+          elif [ -n "$END_TIME" ]; then
+            DOWNLOAD_ARGS+=("--download-sections *00:00:00-${END_TIME}")
+          fi
+
+          OUTPUT_FILE="hasil_video.mp4"
+
+          echo "--- [$(date)] Memulai Download Super Cepat (10x Multi-fragment) Resolusi: $PILIHAN_RES ---"
+          echo "⏱️ Durasi Mulai: ${START_TIME:-00:00:00} sampai ${END_TIME:-[Selesai]}"
+
+          # yt-dlp dengan --concurrent-fragments 10 untuk kecepatan download maksimal
+          yt-dlp $COOKIE_ARG \
+            --force-ipv4 \
+            --no-cache-dir \
+            --js-runtime node \
+            --concurrent-fragments 10 \
+            -f "$FORMAT_ARG" \
+            "${DOWNLOAD_ARGS[@]}" \
+            -o "$OUTPUT_FILE" \
+            "${{ github.event.inputs.link_youtube }}"
+
+          if [ ! -f "$OUTPUT_FILE" ]; then
+            echo "❌ ERROR: File video gagal didownload!"
+            exit 1
+          fi
+
+          echo "✅ Download & Pemotongan Selesai. Ukuran file:"
+          ls -lh "$OUTPUT_FILE"
+
+          echo "--- [$(date)] Mengirim video ke Telegram... ---"
+          
+          # Kirim file video ke Telegram Bot
+          RESPONSE=$(curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
+                          -F video=@"$OUTPUT_FILE" \
+                          -F caption="✅ Video berhasil didownload dan dipotong! Resolusi: ${PILIHAN_RES}p (Mulai: ${START_TIME:-00:00:00})" \
+                          https://api.telegram.org/bot"$TELEGRAM_BOT_TOKEN"/sendVideo)
+
+          echo "Respon Telegram: $RESPONSE"
+
+          # Cek status pengiriman
+          if echo "$RESPONSE" | grep -q '"ok":true'; then
+            echo "🎉 Berhasil mengirim video ke Telegram!"
+          else
+            echo "⚠️ Gagal mengirim via sendVideo, mencoba mengirim sebagai dokumen..."
+            curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
+                 -F document=@"$OUTPUT_FILE" \
+                 -F caption="✅ File dokumen video (Resolusi: ${PILIHAN_RES}p)" \
+                 https://api.telegram.org/bot"$TELEGRAM_BOT_TOKEN"/sendDocument
+          fi
+
+          echo "🔴 Proses selesai sepenuhnya."
+          
