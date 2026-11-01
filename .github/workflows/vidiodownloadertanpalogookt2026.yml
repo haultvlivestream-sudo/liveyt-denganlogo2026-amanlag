@@ -44,7 +44,7 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           yt-dlp -U
 
-      - name: 4. Proses Download Instan & Kirim ke Telegram
+      - name: 4. Proses Download Cepat & Kirim ke Telegram
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -53,7 +53,7 @@ jobs:
           set -e
 
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "❌ ERROR: TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID wajib diisi di GitHub Secrets!"
+            echo "❌ ERROR: TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID wajib diisi!"
             exit 1
           fi
 
@@ -73,46 +73,46 @@ jobs:
 
           START_TIME="${{ github.event.inputs.waktu_mulai }}"
           END_TIME="${{ github.event.inputs.waktu_selesai }}"
-
           OUTPUT_FILE="hasil_video.mp4"
 
-          echo "--- [$(date)] Memulai Download Presisi (Hanya durasi $START_TIME sampai $END_TIME) ---"
+          echo "--- [$(date)] Memulai Download Super Cepat (10x) Tanpa Ngelag ---"
 
-          # Menggunakan --download-sections agar yt-dlp HANYA mendominasi bagian 30 detik tersebut secara instan
           if [ "$START_TIME" = "00:00:00" ] && [ "$END_TIME" = "00:00:00" ]; then
-            # Download utuh jika diset 0 semua
-            yt-dlp $COOKIE_ARG \
-              --force-ipv4 --no-cache-dir --js-runtime node --concurrent-fragments 10 --merge-output-format mp4 \
-              -f "$FORMAT_ARG" -o "$OUTPUT_FILE" "${{ github.event.inputs.link_youtube }}"
+            SECTION_ARG=""
           else
-            # Download langsung pas di rentang waktu yang diminta (super cepat & ukuran kecil)
-            yt-dlp $COOKIE_ARG \
-              --force-ipv4 --no-cache-dir --js-runtime node --concurrent-fragments 10 --merge-output-format mp4 \
-              --download-sections "*${START_TIME}-${END_TIME}" \
-              -f "$FORMAT_ARG" -o "$OUTPUT_FILE" "${{ github.event.inputs.link_youtube }}"
+            SECTION_ARG="--download-sections *${START_TIME}-${END_TIME}"
           fi
 
+          yt-dlp $COOKIE_ARG \
+            --force-ipv4 \
+            --no-cache-dir \
+            --js-runtime node \
+            --concurrent-fragments 10 \
+            --downloader ffmpeg \
+            $SECTION_ARG \
+            -f "$FORMAT_ARG" \
+            --merge-output-format mp4 \
+            -o "$OUTPUT_FILE" \
+            "${{ github.event.inputs.link_youtube }}"
+
           if [ ! -f "$OUTPUT_FILE" ]; then
-            echo "❌ ERROR: File video gagal didownload!"
+            echo "❌ ERROR: Gagal mendownload video!"
             exit 1
           fi
 
-          echo "✅ Download Selesai! Ukuran file 30 detik:"
-          ls -lh "$OUTPUT_FILE"
-
-          echo "--- [$(date)] Mengirim video ke Telegram... ---"
+          echo "✅ Download Selesai Cepat! Mengirim ke Telegram..."
           
           RESPONSE=$(curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
                           -F video=@"$OUTPUT_FILE" \
-                          -F caption="✅ Video 30 detik berhasil didownload! Resolusi: ${PILIHAN_RES}p (${START_TIME} - ${END_TIME})" \
+                          -F caption="✅ Video berhasil didownload super cepat! Resolusi: ${PILIHAN_RES}p (${START_TIME} - ${END_TIME})" \
                           https://api.telegram.org/bot"$TELEGRAM_BOT_TOKEN"/sendVideo)
 
           echo "Respon Telegram: $RESPONSE"
 
           if echo "$RESPONSE" | grep -q '"ok":true'; then
-            echo "🎉 Berhasil mengirim video ke Telegram!"
+            echo "🎉 Berhasil kirim ke Telegram!"
           else
-            echo "⚠️ Gagal mengirim via sendVideo, mencoba mengirim sebagai dokumen..."
+            echo "⚠️ Gagal kirim sebagai video, mencoba sebagai dokumen..."
             curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
                  -F document=@"$OUTPUT_FILE" \
                  -F caption="✅ File dokumen video (Resolusi: ${PILIHAN_RES}p)" \
