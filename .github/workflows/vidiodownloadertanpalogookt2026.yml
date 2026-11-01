@@ -17,7 +17,7 @@ on:
           - '480'
           - 'best'
       waktu_mulai:
-        description: 'Mulai Potong (Format: HH:MM:SS)'
+        description: 'Mulai Potong (Format: HH:MM:SS, cth: 00:00:00)'
         required: true
         default: '00:00:00'
       waktu_selesai:
@@ -52,11 +52,13 @@ jobs:
         run: |
           set -e
 
+          # Validasi Secrets Telegram
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
             echo "❌ ERROR: TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID wajib diisi di GitHub Secrets!"
             exit 1
           fi
 
+          # Setup Cookies YouTube jika ada
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
@@ -64,6 +66,7 @@ jobs:
             COOKIE_ARG=""
           fi
 
+          # Konfigurasi Resolusi
           PILIHAN_RES="${{ github.event.inputs.resolusi }}"
           if [ "$PILIHAN_RES" = "best" ]; then
             FORMAT_ARG="bestvideo+bestaudio/best"
@@ -71,13 +74,17 @@ jobs:
             FORMAT_ARG="bestvideo[height<=$PILIHAN_RES]+bestaudio/best[height<=$PILIHAN_RES]"
           fi
 
+          # Konfigurasi Durasi Waktu Mulai & Selesai
           START_TIME="${{ github.event.inputs.waktu_mulai }}"
           END_TIME="${{ github.event.inputs.waktu_selesai }}"
 
-          # Penanganan Argumen Sections dengan Kutip yang Benar
           DOWNLOAD_ARGS=""
           if [ -n "$START_TIME" ] && [ "$START_TIME" != "00:00:00" ]; then
-            DOWNLOAD_ARGS="--download-sections *${START_TIME}-${END_TIME}"
+            if [ -n "$END_TIME" ]; then
+              DOWNLOAD_ARGS="--download-sections *${START_TIME}-${END_TIME}"
+            else
+              DOWNLOAD_ARGS="--download-sections *${START_TIME}-inf"
+            fi
           elif [ -n "$END_TIME" ]; then
             DOWNLOAD_ARGS="--download-sections *00:00:00-${END_TIME}"
           fi
@@ -85,15 +92,16 @@ jobs:
           OUTPUT_FILE="hasil_video.mp4"
 
           echo "--- [$(date)] Memulai Download Super Cepat (10x Multi-fragment) Resolusi: $PILIHAN_RES ---"
-          echo "⏱️ Durasi Mulai: ${START_TIME:-00:00:00} sampai ${END_TIME:-[Selesai]}"
+          echo "⏱️ Durasi Potong: ${START_TIME:-00:00:00} sampai ${END_TIME:-[Selesai]}"
 
-          # Menjalankan yt-dlp dengan tanda kutip aman untuk --download-sections
+          # Eksekusi yt-dlp berkecepatan tinggi tanpa enkode ulang
           if [ -n "$DOWNLOAD_ARGS" ]; then
             yt-dlp $COOKIE_ARG \
               --force-ipv4 \
               --no-cache-dir \
               --js-runtime node \
               --concurrent-fragments 10 \
+              --merge-output-format mp4 \
               -f "$FORMAT_ARG" \
               $DOWNLOAD_ARGS \
               -o "$OUTPUT_FILE" \
@@ -104,6 +112,7 @@ jobs:
               --no-cache-dir \
               --js-runtime node \
               --concurrent-fragments 10 \
+              --merge-output-format mp4 \
               -f "$FORMAT_ARG" \
               -o "$OUTPUT_FILE" \
               "${{ github.event.inputs.link_youtube }}"
@@ -119,6 +128,7 @@ jobs:
 
           echo "--- [$(date)] Mengirim video ke Telegram... ---"
           
+          # Kirim file video langsung ke Telegram
           RESPONSE=$(curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
                           -F video=@"$OUTPUT_FILE" \
                           -F caption="✅ Video berhasil didownload dan dipotong! Resolusi: ${PILIHAN_RES}p (Mulai: ${START_TIME:-00:00:00})" \
@@ -126,6 +136,7 @@ jobs:
 
           echo "Respon Telegram: $RESPONSE"
 
+          # Fallback jika gagal terkirim sebagai video, dikirim sebagai dokumen
           if echo "$RESPONSE" | grep -q '"ok":true'; then
             echo "🎉 Berhasil mengirim video ke Telegram!"
           else
