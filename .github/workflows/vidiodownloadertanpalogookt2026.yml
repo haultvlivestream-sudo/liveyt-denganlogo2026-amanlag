@@ -1,4 +1,4 @@
-name: Vidio From YouTube Downloader To Telegram Okt 2026
+name: Vidio Downloader From YT To Telegram Okt 2026
 
 on:
   workflow_dispatch:
@@ -17,11 +17,11 @@ on:
           - '480'
           - 'best'
       waktu_mulai:
-        description: 'Mulai Potong (Format: HH:MM:SS atau Detik, cth: 00:05:00)'
+        description: 'Mulai Potong (Format: HH:MM:SS)'
         required: true
         default: '00:00:00'
       waktu_selesai:
-        description: 'Selesai Potong (Format: HH:MM:SS atau Kosongkan jika sampai habis)'
+        description: 'Selesai Potong (Format: HH:MM:SS atau kosongkan)'
         required: false
         default: ''
 
@@ -52,13 +52,11 @@ jobs:
         run: |
           set -e
 
-          # Validasi Telegram Secrets
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
             echo "❌ ERROR: TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID wajib diisi di GitHub Secrets!"
             exit 1
           fi
 
-          # Setup Cookies YouTube jika ada
           if [ -n "$YT_COOKIES" ] && [ "$YT_COOKIES" != "KOSONG" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
@@ -66,7 +64,6 @@ jobs:
             COOKIE_ARG=""
           fi
 
-          # Ambil Input Resolusi & Waktu
           PILIHAN_RES="${{ github.event.inputs.resolusi }}"
           if [ "$PILIHAN_RES" = "best" ]; then
             FORMAT_ARG="bestvideo+bestaudio/best"
@@ -77,11 +74,12 @@ jobs:
           START_TIME="${{ github.event.inputs.waktu_mulai }}"
           END_TIME="${{ github.event.inputs.waktu_selesai }}"
 
-          DOWNLOAD_ARGS=()
+          # Penanganan Argumen Sections dengan Kutip yang Benar
+          DOWNLOAD_ARGS=""
           if [ -n "$START_TIME" ] && [ "$START_TIME" != "00:00:00" ]; then
-            DOWNLOAD_ARGS+=("--download-sections *${START_TIME}-${END_TIME}")
+            DOWNLOAD_ARGS="--download-sections *${START_TIME}-${END_TIME}"
           elif [ -n "$END_TIME" ]; then
-            DOWNLOAD_ARGS+=("--download-sections *00:00:00-${END_TIME}")
+            DOWNLOAD_ARGS="--download-sections *00:00:00-${END_TIME}"
           fi
 
           OUTPUT_FILE="hasil_video.mp4"
@@ -89,16 +87,27 @@ jobs:
           echo "--- [$(date)] Memulai Download Super Cepat (10x Multi-fragment) Resolusi: $PILIHAN_RES ---"
           echo "⏱️ Durasi Mulai: ${START_TIME:-00:00:00} sampai ${END_TIME:-[Selesai]}"
 
-          # yt-dlp dengan --concurrent-fragments 10 untuk kecepatan download maksimal
-          yt-dlp $COOKIE_ARG \
-            --force-ipv4 \
-            --no-cache-dir \
-            --js-runtime node \
-            --concurrent-fragments 10 \
-            -f "$FORMAT_ARG" \
-            "${DOWNLOAD_ARGS[@]}" \
-            -o "$OUTPUT_FILE" \
-            "${{ github.event.inputs.link_youtube }}"
+          # Menjalankan yt-dlp dengan tanda kutip aman untuk --download-sections
+          if [ -n "$DOWNLOAD_ARGS" ]; then
+            yt-dlp $COOKIE_ARG \
+              --force-ipv4 \
+              --no-cache-dir \
+              --js-runtime node \
+              --concurrent-fragments 10 \
+              -f "$FORMAT_ARG" \
+              $DOWNLOAD_ARGS \
+              -o "$OUTPUT_FILE" \
+              "${{ github.event.inputs.link_youtube }}"
+          else
+            yt-dlp $COOKIE_ARG \
+              --force-ipv4 \
+              --no-cache-dir \
+              --js-runtime node \
+              --concurrent-fragments 10 \
+              -f "$FORMAT_ARG" \
+              -o "$OUTPUT_FILE" \
+              "${{ github.event.inputs.link_youtube }}"
+          fi
 
           if [ ! -f "$OUTPUT_FILE" ]; then
             echo "❌ ERROR: File video gagal didownload!"
@@ -110,7 +119,6 @@ jobs:
 
           echo "--- [$(date)] Mengirim video ke Telegram... ---"
           
-          # Kirim file video ke Telegram Bot
           RESPONSE=$(curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
                           -F video=@"$OUTPUT_FILE" \
                           -F caption="✅ Video berhasil didownload dan dipotong! Resolusi: ${PILIHAN_RES}p (Mulai: ${START_TIME:-00:00:00})" \
@@ -118,7 +126,6 @@ jobs:
 
           echo "Respon Telegram: $RESPONSE"
 
-          # Cek status pengiriman
           if echo "$RESPONSE" | grep -q '"ok":true'; then
             echo "🎉 Berhasil mengirim video ke Telegram!"
           else
